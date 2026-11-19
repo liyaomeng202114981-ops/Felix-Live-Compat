@@ -1,0 +1,30 @@
+From: Felix Li <felix-li@users.noreply.github.com>
+Subject: [PATCH] winex11: Opt in to an application-specific WM instance.
+
+Set the X11 instance for an explicitly selected executable. Keep the
+window class available to the existing compositor rules. GNOME may use
+the instance for association to a separate desktop entry.
+
+Co-authored-by: OpenAI Codex <codex@openai.com>
+---
+--- a/dlls/winex11.drv/window.c
++++ b/dlls/winex11.drv/window.c
+@@ -1309,11 +1309,17 @@
+     {
+         static char steam_proton[] = "steam_proton";
+         const char *app_id = getenv("SteamAppId");
++        const char *instance = getenv("WINE_X11_WM_INSTANCE");
++        const char *instance_exe = getenv("WINE_X11_WM_INSTANCE_EXE");
+         char proton_app_class[128];
+ 
+         if (use_desktop_compat() && process_name)
+         {
+-            class_hints->res_name = process_name;
++            /* Keep the class available to existing compositor rules. */
++            if (instance && *instance && instance_exe && !strcmp( process_name, instance_exe ))
++                class_hints->res_name = (char *)instance;
++            else
++                class_hints->res_name = process_name;
+             class_hints->res_class = process_name;
+         }
+         else if(app_id && *app_id){

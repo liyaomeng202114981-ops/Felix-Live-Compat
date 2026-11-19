@@ -5,7 +5,6 @@
 
 import argparse
 from contextlib import suppress
-import hashlib
 import os
 from pathlib import Path
 import select
@@ -16,6 +15,8 @@ import sys
 import time
 
 from assets import obtain
+from desktop import application_id, desktop_path, instance_key, register_desktop
+from preflight import check_dependencies
 from wine_runtime import install_wine_modules
 
 
@@ -29,7 +30,8 @@ MARKER = ".felix-live-compat"
 WINDOW_CLASS = "直播伴侣.exe".encode()
 LAUNCHER = "直播伴侣 Launcher.exe"
 DISPLAY_ENV = ("DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR",
-               "XDG_SESSION_TYPE", "DBUS_SESSION_BUS_ADDRESS")
+               "XDG_SESSION_TYPE", "DBUS_SESSION_BUS_ADDRESS", "XDG_CURRENT_DESKTOP",
+               "PIPEWIRE_RUNTIME_DIR", "PIPEWIRE_REMOTE", "DESKTOP_STARTUP_ID")
 PREFIX_ENV = {"WINEDEBUG": "-all", "PROTON_LOG": "0", "PROTON_NVIDIA_NVENC": "1",
               "PROTON_FORCE_NVAPI": "1"}
 
@@ -53,6 +55,9 @@ def install(root, installer, assets, interactive):
         raise ValueError("Supply the official Windows .exe installer")
     if installer.is_relative_to(root):
         raise ValueError("Keep the official installer outside the new installation directory")
+    check_dependencies()
+    if os.path.lexists(desktop_path(root)):
+        raise FileExistsError(f"Desktop entry already exists: {desktop_path(root)}")
     built = KIT / "payload"
     subprocess.run(["sha256sum", "--strict", "--check", "SHA256SUMS"], cwd=built, check=True)
     root.mkdir(mode=0o700, parents=True)
@@ -74,13 +79,17 @@ def install(root, installer, assets, interactive):
     find_launcher(root)
     stage_capture(payload, root / "prefix", root / "runner", root / "shorin-proton-wrapper",
                   wine_env=env)
+    for name in ("tools", "src"):
+        shutil.copytree(KIT / name, root / "launcher" / name,
+                        ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copy2(KIT / "assets.json", root / "launcher/assets.json")
     (root / MARKER).write_text("1\n", encoding="ascii")
     print(f"Ready: {root}")
+    print(f"Desktop entry: {register_desktop(root)}")
 
 
 def service_name(root):
-    suffix = hashlib.sha256(os.fsencode(root)).hexdigest()[:16]
-    return f"felix-live-compat-{suffix}"
+    return f"felix-live-compat-{instance_key(root)}"
 
 
 def launch(root, direct):
@@ -92,6 +101,7 @@ def launch(root, direct):
     flags = ["--direct"] if direct else []
     subprocess.run(["systemd-run", "--user", "--collect", "--service-type=exec", f"--unit={unit}",
                     f"--property=RuntimeDirectory={unit}", "--property=RuntimeDirectoryMode=0700",
+                    "--property=KillMode=control-group", "--property=TimeoutStopSec=5s",
                     *env, "--", sys.executable, "-B", str(Path(__file__).resolve()),
                     "run-session", "--root", root, *flags], check=True)
 
@@ -180,7 +190,9 @@ def run_session(root, direct):
     env.update(WINEDLLOVERRIDES="d3d11=n;graphicscapture=n;winemenubuilder.exe=d",
                WINE_LAYERED_OVERLAY_ALPHA="1", WINE_X11_NATIVE_MAXIMIZED_MOVE="1",
                WINE_X11_NO_FULLSCREEN_LAYERED_HELPER="1",
-               WINE_X11_NO_FULLSCREEN_HELPER_CLASS="Chrome_WidgetWin_1")
+               WINE_X11_NO_FULLSCREEN_HELPER_CLASS="Chrome_WidgetWin_1",
+               WINE_X11_WM_INSTANCE=application_id(root),
+               WINE_X11_WM_INSTANCE_EXE=WINDOW_CLASS.decode())
     arguments = ["--force-renderer-accessibility=complete"]
     if direct:
         for name in ("http_proxy", "https_proxy", "all_proxy", "ftp_proxy", "no_proxy"):
@@ -236,6 +248,7 @@ def run_session(root, direct):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("preflight")
     for name in ("install", "launch", "stop", "run-session"):
         command = commands.add_parser(name)
         command.add_argument("--root", type=lambda path: Path(path).expanduser().resolve(), required=True)
@@ -248,7 +261,9 @@ def main():
             command.add_argument("--direct", action="store_true")
     args = parser.parse_args()
     try:
-        if args.command == "install":
+        if args.command == "preflight":
+            check_dependencies()
+        elif args.command == "install":
             install(args.root, args.installer, args.assets, args.interactive)
         else:
             (args.root / MARKER).read_text()

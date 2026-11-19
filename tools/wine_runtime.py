@@ -19,6 +19,7 @@ PATCH_SERIES = (
     "0068-winex11-Derive-alpha-input-shapes-from-composed-destination.patch",
     "0069-winex11-Opt-in-to-native-maximized-caption-moves.patch",
     "0070-winex11-Keep-profiled-layered-decoration-windows-out-of-fullscreen.patch",
+    "0071-winex11-Opt-in-to-an-application-specific-WM-instance.patch",
 )
 WINE_SOURCE = "felix-proton-uu-test.1-modified-wine-source/wine"
 SDK = ("registry.gitlab.steamos.cloud/proton/steamrt4/sdk/x86_64@sha256:"
