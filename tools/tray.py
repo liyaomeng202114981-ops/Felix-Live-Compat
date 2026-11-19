@@ -2,6 +2,8 @@
 # Copyright 2026 Felix Li, with OpenAI Codex assistance.
 """Export the running compatibility session's menu to the desktop tray."""
 
+from contextlib import closing
+import os
 from pathlib import Path
 import re
 import signal
@@ -18,10 +20,15 @@ ITEM_PATH = "/StatusNotifierItem"
 WATCHER_PATH = "/StatusNotifierWatcher"
 MENU_PATH = "/Menu"
 FORCE_QUIT = 1
+OPEN_APP = 2
+APP_ACTIONS = {OPEN_APP: "打开直播伴侣", 3: "重置直播伴侣窗口", 4: "退出直播伴侣"}
+ORIGINAL_MENU = 5
+SEPARATOR = 6
 
 MENU_INTERFACE = Gio.DBusNodeInfo.new_for_xml(f"""
 <node><interface name="{MENU}">
   <property name="Version" type="u" access="read"/>
+  <signal name="LayoutUpdated"><arg type="u"/><arg type="i"/></signal>
   <method name="GetLayout">
     <arg name="parent" type="i" direction="in"/>
     <arg name="depth" type="i" direction="in"/>
@@ -49,9 +56,13 @@ MENU_INTERFACE = Gio.DBusNodeInfo.new_for_xml(f"""
 
 
 class Tray:
-    def __init__(self, unit):
+    def __init__(self, unit, cgroup, runtime):
         self.unit = unit
+        self.cgroup = cgroup
+        self.runtime = runtime
         self.stop_requested = False
+        self.native_item = None
+        self.revision = 1
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self.loop = GLib.MainLoop()
         title = "直播伴侣（Felix 兼容版）"
@@ -75,6 +86,11 @@ class Tray:
             0: {"children-display": GLib.Variant("s", "submenu")},
             FORCE_QUIT: {"label": GLib.Variant("s", "强制退出（Felix 兼容版）")},
         }
+        self.application_items = {
+            **{key: {"label": GLib.Variant("s", label)} for key, label in APP_ACTIONS.items()},
+            ORIGINAL_MENU: {"label": GLib.Variant("s", "直播伴侣原菜单…")},
+            SEPARATOR: {"type": GLib.Variant("s", "separator")},
+        }
 
     def get_property(self, _bus, _sender, _path, interface, name):
         if interface == MENU:
@@ -94,9 +110,11 @@ class Tray:
                 return
             children = []
             if parent == 0 and depth != 0:
-                children.append(GLib.Variant("(ia{sv}av)",
-                                            (FORCE_QUIT, self.item_properties(FORCE_QUIT, names), [])))
-            result = GLib.Variant("(u(ia{sv}av))", (1, (parent, self.item_properties(parent, names), children)))
+                order = (*self.application_items, FORCE_QUIT) if self.native_item else (FORCE_QUIT,)
+                children = [GLib.Variant("(ia{sv}av)", (item, self.item_properties(item, names), []))
+                            for item in order]
+            result = GLib.Variant("(u(ia{sv}av))",
+                                  (self.revision, (parent, self.item_properties(parent, names), children)))
         elif method == "GetGroupProperties":
             items, names = args
             result = GLib.Variant("(a(ia{sv}))", ([(item, self.item_properties(item, names))
@@ -106,10 +124,88 @@ class Tray:
             result = GLib.Variant("(b)", (False,))
         else:  # Event
             result = None
-            if args[:2] == (FORCE_QUIT, "clicked") and not self.stop_requested:
+            item, event = args[:2]
+            if item == FORCE_QUIT and event == "clicked" and not self.stop_requested:
                 self.stop_requested = True
                 GLib.idle_add(self.force_quit)
+            elif event == "clicked" and self.native_item and (item in APP_ACTIONS or item == ORIGINAL_MENU):
+                GLib.timeout_add(90, self.open_native_menu, item)
         invocation.return_value(result)
+
+    def call(self, owner, path, interface, method, signature, args):
+        return self.bus.call_sync(owner, path, interface, method, GLib.Variant(signature, args),
+                                  None, Gio.DBusCallFlags.NO_AUTO_START, 800, None).unpack()
+
+    def property_value(self, owner, path, interface, name):
+        return self.call(owner, path, "org.freedesktop.DBus.Properties", "Get", "(ss)", (interface, name))[0]
+
+    def own_original_item(self, name):
+        if not re.fullmatch(r"org\.kde\.StatusNotifierItem-\d+-\d+", name):
+            return None
+        daemon = "org.freedesktop.DBus"
+        daemon_path = "/org/freedesktop/DBus"
+        try:
+            owner, = self.call(daemon, daemon_path, daemon, "GetNameOwner", "(s)", (name,))
+            pid, = self.call(daemon, daemon_path, daemon, "GetConnectionUnixProcessID", "(s)", (owner,))
+            groups = Path(f"/proc/{pid}/cgroup").read_text().splitlines()
+            if self.cgroup in groups and self.property_value(owner, ITEM_PATH, ITEM, "Id") == "直播伴侣.exe":
+                return owner
+        except (OSError, GLib.Error):
+            pass
+        return None
+
+    def set_native_item(self, owner):
+        if self.native_item == owner:
+            return
+        self.native_item = owner
+        if owner:
+            self.menu_items.update(self.application_items)
+        else:
+            for key in self.application_items:
+                self.menu_items.pop(key, None)
+        self.revision += 1
+        self.bus.emit_signal(None, MENU_PATH, MENU, "LayoutUpdated", GLib.Variant("(ui)", (self.revision, 0)))
+
+    def refresh_native_item(self, *_args):
+        try:
+            names = self.property_value(WATCHER, WATCHER_PATH, WATCHER, "RegisteredStatusNotifierItems")
+        except GLib.Error:
+            return
+        self.set_native_item(next((owner for name in names if (owner := self.own_original_item(name))), None))
+
+    @staticmethod
+    def expire_action(path, inode):
+        try:
+            if path.stat().st_ino == inode:
+                path.unlink(missing_ok=True)
+        except FileNotFoundError:
+            pass
+        return GLib.SOURCE_REMOVE
+
+    def open_native_menu(self, action):
+        from Xlib import display, error
+
+        owner = self.native_item
+        if not owner:
+            return GLib.SOURCE_REMOVE
+        request = self.runtime / "tray-action"
+        inode = None
+        try:
+            with closing(display.Display()) as connection:
+                position = connection.screen().root.query_pointer()
+            if action in APP_ACTIONS and action != OPEN_APP:
+                stage = self.runtime / "tray-action.next"
+                stage.write_text(f"{action - OPEN_APP}\n", encoding="ascii")
+                inode = stage.stat().st_ino
+                os.replace(stage, request)
+                GLib.timeout_add(1500, self.expire_action, request, inode)
+            method = "Activate" if action == OPEN_APP else "ContextMenu"
+            self.call(owner, ITEM_PATH, ITEM, method, "(ii)", (position.root_x, position.root_y))
+        except (OSError, GLib.Error, error.DisplayError, error.XError) as exc:
+            if inode is not None:
+                self.expire_action(request, inode)
+            print(f"Tray could not forward the companion action: {exc}", file=sys.stderr, flush=True)
+        return GLib.SOURCE_REMOVE
 
     def force_quit(self):
         try:
@@ -125,6 +221,10 @@ class Tray:
         connection.call(owner, WATCHER_PATH, WATCHER, "RegisterStatusNotifierItem",
                         GLib.Variant("(s)", (ITEM_PATH,)), None, Gio.DBusCallFlags.NO_AUTO_START,
                         3000, None, self.registration_finished)
+        self.refresh_native_item()
+
+    def watcher_vanished(self, *_args):
+        self.set_native_item(None)
 
     def registration_finished(self, connection, result):
         try:
@@ -138,21 +238,26 @@ class Tray:
                                         None, self.get_property, None)
         menu = self.bus.register_object(MENU_PATH, MENU_INTERFACE.interfaces[0],
                                         self.menu_call, self.get_property, None)
+        watch_signals = [self.bus.signal_subscribe(WATCHER, WATCHER, signal_name, WATCHER_PATH,
+                                                   None, Gio.DBusSignalFlags.NONE, self.refresh_native_item)
+                         for signal_name in ("StatusNotifierItemRegistered", "StatusNotifierItemUnregistered")]
         watch = Gio.bus_watch_name_on_connection(self.bus, WATCHER, Gio.BusNameWatcherFlags.NONE,
-                                                self.watcher_appeared, None)
+                                                self.watcher_appeared, self.watcher_vanished)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.loop.quit)
         try:
             self.loop.run()
         finally:
             Gio.bus_unwatch_name(watch)
+            for subscription in watch_signals:
+                self.bus.signal_unsubscribe(subscription)
             self.bus.unregister_object(menu)
             self.bus.unregister_object(item)
 
 
 if __name__ == "__main__":
     unit = sys.argv[1]
-    cgroups = Path("/proc/self/cgroup").read_text().splitlines()
-    if not re.fullmatch(r"felix-live-compat-[0-9a-f]{16}\.service", unit) or not any(
-            entry.startswith("0::") and entry.endswith(f"/{unit}") for entry in cgroups):
+    cgroup = next((entry for entry in Path("/proc/self/cgroup").read_text().splitlines()
+                   if entry.startswith("0::")), "")
+    if not re.fullmatch(r"felix-live-compat-[0-9a-f]{16}\.service", unit) or not cgroup.endswith(f"/{unit}"):
         raise SystemExit("Start the tray within its own Felix Live Compat service.")
-    Tray(unit).run()
+    Tray(unit, cgroup, Path(os.environ["RUNTIME_DIRECTORY"])).run()

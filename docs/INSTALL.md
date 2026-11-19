@@ -38,4 +38,6 @@ target="$HOME/Games/Felix-Live-Compat"
 
 启用 Ubuntu AppIndicator 扩展的 GNOME 会话还会在顶栏显示兼容版的摄像机图标。右键菜单中的「强制退出（Felix 兼容版）」同样只停止这个安装的服务。服务结束后图标自动消失。托盘使用 `StatusNotifierItem` 和 `DBusMenu`，由系统桌面呈现。系统未启用托盘扩展时仍可使用 Dock 入口。[Ubuntu AppIndicator 扩展](https://github.com/ubuntu/gnome-shell-extension-appindicator)
 
+伴侣注册自己的托盘后，摄像机图标还会显示「打开直播伴侣」「重置直播伴侣窗口」和「退出直播伴侣」。这些动作调用同一实例的原托盘，正常退出保留伴侣的确认框。「直播伴侣原菜单…」可以直接打开应用自己的菜单。遇到原菜单文本变化时也可以在打开的原菜单里选择。
+
 使用自有动态图时可运行 `GDK_BACKEND=wayland /usr/bin/python3 -B tools/test_source.py`，需要 `gir1.2-gtk-4.0` 和 `python3-gi-cairo`。可通过伴侣的本地录制核验画面与声音。[从零安装验收](CLEAN_INSTALL_TEST.md)

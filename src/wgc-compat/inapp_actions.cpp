@@ -15,6 +15,9 @@
 namespace {
 constexpr wchar_t title[] = L"直播伴侣";
 constexpr wchar_t picker_label[] = L"选择窗口（请保持窗口打开并放于桌面上）";
+constexpr const wchar_t *tray_labels[] = {
+    L"打开直播伴侣", L"重置直播伴侣窗口", L"退出直播伴侣"
+};
 DWORD target_pid{};
 IUIAutomation *automation{};
 IUIAutomationCondition *all_elements{};
@@ -96,7 +99,7 @@ BOOL CALLBACK find_picker(HWND window, LPARAM parameter) {
     return FALSE;
 }
 
-bool click_picker(HWND window, RECT box) {
+bool click_element(HWND window, RECT box, bool allow_popup_widget = false) {
     if (!belongs(window) || box.right <= box.left || box.bottom <= box.top) return false;
     HWND renderer{};
     EnumChildWindows(window, [](HWND child, LPARAM result) -> BOOL {
@@ -107,6 +110,11 @@ bool click_picker(HWND window, RECT box) {
         *reinterpret_cast<HWND *>(result) = child;
         return FALSE;
     }, reinterpret_cast<LPARAM>(&renderer));
+    if (!renderer && allow_popup_widget) {
+        wchar_t cls[64]{};
+        if (GetClassNameW(window, cls, ARRAYSIZE(cls)) && !wcsncmp(cls, L"Chrome_WidgetWin_", 17))
+            renderer = window;
+    }
     POINT point{(box.left + box.right) / 2, (box.top + box.bottom) / 2};
     RECT client{};
     if (!belongs(renderer) || !ScreenToClient(renderer, &point) ||
@@ -116,6 +124,63 @@ bool click_picker(HWND window, RECT box) {
     return PostMessageW(renderer, WM_MOUSEMOVE, 0, position) &&
            PostMessageW(renderer, WM_LBUTTONDOWN, MK_LBUTTON, position) &&
            PostMessageW(renderer, WM_LBUTTONUP, 0, position);
+}
+
+struct TrayChoice {
+    unsigned index;
+    HWND window{};
+    RECT box{};
+};
+
+BOOL CALLBACK find_tray_menu(HWND window, LPARAM parameter) {
+    RECT bounds{};
+    if (!belongs(window) || !IsWindowVisible(window) || !GetWindowRect(window, &bounds) ||
+        bounds.right - bounds.left > 480 || bounds.bottom - bounds.top > 480)
+        return TRUE;
+    IUIAutomationElement *root{};
+    if (FAILED(automation->ElementFromHandle(window, &root)) || !root) return TRUE;
+    IUIAutomationElementArray *items{};
+    const auto status = root->FindAll(TreeScope_Descendants, all_elements, &items);
+    root->Release();
+    if (FAILED(status) || !items) return TRUE;
+
+    RECT boxes[ARRAYSIZE(tray_labels)]{};
+    int count{};
+    items->get_Length(&count);
+    for (int i = 0; i < count && i < 180; ++i) {
+        IUIAutomationElement *item{};
+        if (FAILED(items->GetElement(i, &item)) || !item) continue;
+        BSTR name{};
+        RECT box{};
+        if (SUCCEEDED(item->get_CurrentName(&name)) && name &&
+            SUCCEEDED(item->get_CurrentBoundingRectangle(&box)) &&
+            box.right > box.left && box.bottom > box.top &&
+            box.left >= bounds.left && box.top >= bounds.top &&
+            box.right <= bounds.right && box.bottom <= bounds.bottom) {
+            for (unsigned j = 0; j < ARRAYSIZE(tray_labels); ++j)
+                if (!wcscmp(name, tray_labels[j])) boxes[j] = box;
+        }
+        SysFreeString(name);
+        item->Release();
+    }
+    items->Release();
+    // Do not activate a similarly labelled control in another small dialog.
+    for (const auto &box : boxes)
+        if (box.right <= box.left || box.bottom <= box.top) return TRUE;
+    auto &choice = *reinterpret_cast<TrayChoice *>(parameter);
+    choice.window = window;
+    choice.box = boxes[choice.index];
+    return FALSE;
+}
+
+int read_tray_action(const std::wstring &path) {
+    FILE *file = _wfopen(path.c_str(), L"r");
+    if (!file) return -1;
+    int action = -1;
+    if (std::fscanf(file, "%d", &action) != 1) action = -1;
+    std::fclose(file);
+    DeleteFileW(path.c_str());
+    return action > 0 && action < static_cast<int>(ARRAYSIZE(tray_labels)) ? action : -1;
 }
 
 std::wstring read_title(const std::wstring &path) {
@@ -221,6 +286,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     }
     report("window chooser observer ready");
     const auto captures = base + L"\\window";
+    const auto tray_action = base + L"\\tray-action";
     if (!CreateDirectoryW(captures.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) return 6;
     MSG message{};
     std::vector<Proxy> active;
@@ -229,6 +295,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     HWND proxy{};
     bool expanded = false, submitted = false;
     ULONGLONG finish_by{};
+    ULONGLONG tray_finish_by{};
+    int pending_tray_action = -1;
     DWORD token = GetTickCount();
     std::wstring directory;
     std::wstring label;
@@ -258,6 +326,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
         if (message.message != WM_TIMER || message.wParam != timer) {
             DispatchMessageW(&message);
+            continue;
+        }
+        if (const int action = read_tray_action(tray_action); action >= 0) {
+            pending_tray_action = action;
+            tray_finish_by = GetTickCount64() + 1500;
+        }
+        if (pending_tray_action >= 0) {
+            TrayChoice choice{static_cast<unsigned>(pending_tray_action)};
+            EnumWindows(find_tray_menu, reinterpret_cast<LPARAM>(&choice));
+            if (choice.window && click_element(choice.window, choice.box, true)) {
+                report(pending_tray_action == 1 ? "original tray reset sent" : "original tray quit sent");
+                pending_tray_action = -1;
+            } else if (GetTickCount64() >= tray_finish_by) {
+                report("original tray command could not be matched; leaving the menu available");
+                pending_tray_action = -1;
+            }
             continue;
         }
         active.erase(std::remove_if(active.begin(), active.end(), [](const Proxy &source) {
@@ -325,11 +409,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
                 report("authorized window frame confirmed and companion selector closed");
                 finish(true);
             }
-        } else if (picker.window == dialog && click_picker(dialog, picker.option)) {
+        } else if (picker.window == dialog && click_element(dialog, picker.option)) {
             report("authorized window selected in companion");
             submitted = true;
         } else if (picker.window == dialog && !expanded) {
-            expanded = click_picker(dialog, picker.input);
+            expanded = click_element(dialog, picker.input);
         }
     }
     if (timer) KillTimer(nullptr, timer);
