@@ -77,7 +77,7 @@ def install(root, installer, assets, interactive):
     subprocess.run(wine_command(root, "--init"), env=env, check=True)
     arguments = () if interactive else ("/S",)
     subprocess.run(wine_command(root, installer, *arguments), env=env, check=True)
-    find_launcher(root)
+    launcher = find_launcher(root)
     stage_capture(payload, root / "prefix", root / "runner", root / "shorin-proton-wrapper",
                   wine_env=env)
     for name in ("tools", "src"):
@@ -86,7 +86,7 @@ def install(root, installer, assets, interactive):
     shutil.copy2(KIT / "assets.json", root / "launcher/assets.json")
     (root / MARKER).write_text("1\n", encoding="ascii")
     print(f"Ready: {root}")
-    print(f"Desktop entry: {register_desktop(root)}")
+    print(f"Desktop entry: {register_desktop(root, launcher)}")
 
 
 def service_name(root):

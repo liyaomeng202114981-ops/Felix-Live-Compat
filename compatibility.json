@@ -2,6 +2,12 @@
   "schema_version": 1,
   "official_windows_download": "https://streamingtool.douyin.com/",
   "windows_client_version_source": "installed Windows client build after official update",
+  "local_candidate": {
+    "compatibility_version": "0.1.0-rc.1",
+    "windows_client_version": "13.3.5.564315535",
+    "distribution": "local candidate",
+    "packaging": "clean installation with the official Windows installer"
+  },
   "clean_install_candidate": {
     "windows_client_version": "13.3.5.564315535",
     "installer_architecture": "x64",

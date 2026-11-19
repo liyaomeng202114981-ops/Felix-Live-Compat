@@ -30,6 +30,8 @@ target="$HOME/Games/Felix-Live-Compat"
 
 安装完成后，在 GNOME 应用列表点击「直播伴侣（Felix 兼容版）」，也可从右键菜单将它添加到 Dock。入口使用该安装目录的启动程序和直连选项，解包目录可以移走。终端启动时可用下列命令。客户端可能先更新或要求扫码。进入主界面后，从「添加素材」选「全屏」或「窗口」，再在 Ubuntu 系统选择器授权。声音默认使用当前会话的音频设备。
 
+独立入口在安装时从官方客户端的 `icon.ico` 提取图标供应用网格和 Dock 共用。缺少 GdkPixbuf 类型库或无法读取官方图标时，使用通用摄像机图标。若旧入口在 GNOME 应用网格仍显示旧图标，可让 GNOME 重新载入该兼容版入口。已有安装可保留，新的安装路径必须为空。
+
 ```bash
 /usr/bin/python3 -B "$target/launcher/tools/felix_live.py" launch --root "$target" --direct
 ```

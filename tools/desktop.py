@@ -5,6 +5,7 @@
 import hashlib
 import os
 from pathlib import Path
+import re
 import tempfile
 
 
@@ -30,7 +31,34 @@ def exec_line(*args):
     return " ".join(map(quote, args))
 
 
-def register_desktop(root):
+def companion_icon(root, launcher):
+    versions = [
+        directory for directory in launcher.parent.iterdir()
+        if re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", directory.name)
+        and (directory / "直播伴侣.exe").is_file()
+    ]
+    versions.sort(key=lambda directory: tuple(map(int, directory.name.split("."))), reverse=True)
+    source = next((directory / "icon.ico" for directory in versions
+                   if (directory / "icon.ico").is_file()), None)
+    if source is None:
+        return "camera-video"
+
+    import gi
+    from gi.repository import GLib
+
+    try:
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import GdkPixbuf
+
+        icon = GdkPixbuf.Pixbuf.new_from_file_at_size(str(source), 256, 256)
+        target = root / "launcher/companion-icon.png"
+        icon.savev(str(target), "png", [], [])
+    except (ImportError, ValueError, GLib.Error):
+        return "camera-video"
+    return str(target)
+
+
+def register_desktop(root, launcher):
     from gi.repository import GLib
 
     target = desktop_path(root)
@@ -42,7 +70,7 @@ def register_desktop(root):
     for name, value in {
         "Type": "Application",
         "Name": "Douyin Live Companion (Felix Compat)",
-        "Icon": "camera-video",
+        "Icon": companion_icon(root, launcher),
         "Exec": exec_line(*command, "launch", "--root", root, "--direct"),
         "StartupWMClass": application_id(root),
         "Categories": "AudioVideo;Video;",
