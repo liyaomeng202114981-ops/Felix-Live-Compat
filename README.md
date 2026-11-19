@@ -6,7 +6,13 @@
 
 已在 Ubuntu GNOME Wayland／XWayland 验证官方客户端 `13.3.5.564315535`。验收覆盖原 Dock 入口重开、全屏及窗口共享预览、声音和录制。此前隔离候选从伴侣推流端验证了全屏约 33 秒、窗口约 28 秒，观众端与长时推流待验收。具体版本、验证范围和固定的 Felix-Proton 源码提交记录在 [compatibility.json](compatibility.json)。
 
-现阶段仓库登记的是已有实测的开发基线。可供从零安装的兼容包和发行标签待打包验收。
+## 安装与源码
+
+从零安装的开发候选已验证官方安装器和首次启动。新前缀的全屏、窗口预览和伴侣内声音录制仍在验收。
+
+[从零安装与本地打包](docs/INSTALL.md) · [安装验收](docs/CLEAN_INSTALL_TEST.md) · [来源与许可](THIRD_PARTY.md)
+
+[Wayland 采集与 WGC](src/wgc-compat/README.md) · [退出确认框](src/wgc-compat/POPUP_FIRST_PAINT.md)
 
 ## 跟随 Windows 版
 

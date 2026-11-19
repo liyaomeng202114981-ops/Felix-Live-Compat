@@ -1,0 +1,14 @@
+{
+  "runner": {
+    "filename": "felix-proton-uu-test-0.1.0-test.1.tar.zst",
+    "url": "https://github.com/liyaomeng202114981-ops/Felix-Proton/releases/download/felix-proton-setup-v0.1.0-preview.1/felix-proton-uu-test-0.1.0-test.1.tar.zst",
+    "sha256": "320d1a9fce1bd4a885c6cc88c35db50411234c0e5f477e167e15460d09362fea",
+    "max_bytes": 805306368
+  },
+  "wrapper": {
+    "filename": "shorin-proton-wrapper",
+    "url": "https://github.com/liyaomeng202114981-ops/Felix-Proton/releases/download/felix-proton-setup-v0.1.0-preview.1/shorin-proton-wrapper",
+    "sha256": "19a5ed00b0571d48bb41c7e38e6f5a254db96e06b6b6370f2680caab265d997c",
+    "max_bytes": 1048576
+  }
+}

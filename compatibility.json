@@ -2,6 +2,16 @@
   "schema_version": 1,
   "official_windows_download": "https://streamingtool.douyin.com/",
   "windows_client_version_source": "installed Windows client build after official update",
+  "clean_install_candidate": {
+    "windows_client_version": "13.3.5.564315535",
+    "installer_architecture": "x64",
+    "installer_sha256": "cd8c59735fad840bf6db33b6ea31527b46864bd5169d23e20d134e2132bf020d",
+    "status": "development candidate, installation and startup verified",
+    "monitor_preview": "PipeWire receives frames; companion has not leased frames",
+    "window_preview": "system chooser not triggered",
+    "audio": "Win32 tone captured by PipeWire; companion recording pending",
+    "evidence": "docs/CLEAN_INSTALL_TEST.md"
+  },
   "baselines": [
     {
       "windows_client_version": "13.3.5.564315535",
