@@ -203,6 +203,7 @@ def run_session(root, direct):
     subprocess.Popen(wine_command(root, launcher, *arguments), cwd=launcher.parent, env=env)
     connection = display.Display()
     children = []
+    tray = None
     owner = None
     candidate = None
     appeared = 0.0
@@ -216,6 +217,10 @@ def run_session(root, direct):
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     try:
+        try:
+            tray = subprocess.Popen([sys.executable, "-B", KIT / "tools/tray.py", unit + ".service"])
+        except OSError as exc:
+            print(f"Tray could not start: {exc}", file=sys.stderr, flush=True)
         while not stopping:
             if owner is None:
                 window = main_window(connection, set(membership.read_text().split()))
@@ -239,7 +244,7 @@ def run_session(root, direct):
             elif any(child.poll() is not None for child in children):
                 raise RuntimeError("A compatibility helper stopped while the client was running")
     finally:
-        stop_helpers(children)
+        stop_helpers(([tray] if tray is not None else []) + children)
         if owner is not None:
             os.close(owner)
         connection.close()
