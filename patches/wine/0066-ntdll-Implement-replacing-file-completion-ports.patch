@@ -1,0 +1,116 @@
+From fe9c0287d0eeeaff5461e55a82a2e93f81f13975 Mon Sep 17 00:00:00 2001
+From: Felix Li <felix-li@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 22:18:23 +0800
+Subject: [PATCH] ntdll: Implement replacing file completion ports.
+
+Forward FileReplaceCompletionInformation to a server-side operation that
+replaces or removes the completion object without changing existing
+request numbers. Resolve the replacement before releasing the previous
+object so an invalid port preserves the original association. Convert
+32-bit completion information through WoW64 as for initial association.
+
+The documented successful detach/rebind and transfer operations fail on
+the original runner. Validate with pending named-pipe reads and separate
+completion ports. Native Windows execution was not measured.
+
+Inspired by Andrew Buck's May 2022 wine-devel proposal; independently
+adapted to this pinned Wine tree with transactional replacement and
+WoW64 conversion.
+
+Co-Authored-By: OpenAI Codex <codex@openai.com>
+---
+ dlls/ntdll/unix/file.c | 17 +++++++++++++++++
+ dlls/wow64/file.c      |  1 +
+ server/fd.c            | 19 +++++++++++++++++++
+ server/protocol.def    |  8 ++++++++
+ 4 files changed, 45 insertions(+)
+
+diff --git a/dlls/ntdll/unix/file.c b/dlls/ntdll/unix/file.c
+index cb31814..5533d1c 100644
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -5575,6 +5575,23 @@ NTSTATUS WINAPI NtSetInformationFile( HANDLE handle, IO_STATUS_BLOCK *io,
+         else status = STATUS_INVALID_PARAMETER_3;
+         break;
+ 
++    case FileReplaceCompletionInformation:
++        if (len >= sizeof(FILE_COMPLETION_INFORMATION))
++        {
++            FILE_COMPLETION_INFORMATION *info = ptr;
++
++            SERVER_START_REQ( replace_completion_info )
++            {
++                req->handle  = wine_server_obj_handle( handle );
++                req->chandle = wine_server_obj_handle( info->CompletionPort );
++                req->ckey    = info->CompletionKey;
++                status = wine_server_call( req );
++            }
++            SERVER_END_REQ;
++        }
++        else status = STATUS_INVALID_PARAMETER_3;
++        break;
++
+     case FileIoCompletionNotificationInformation:
+         if (len >= sizeof(FILE_IO_COMPLETION_NOTIFICATION_INFORMATION))
+         {
+diff --git a/dlls/wow64/file.c b/dlls/wow64/file.c
+index 09a455e..b7d174b 100644
+--- a/dlls/wow64/file.c
++++ b/dlls/wow64/file.c
+@@ -845,6 +845,7 @@ NTSTATUS WINAPI wow64_NtSetInformationFile( UINT *args )
+         else status = io.Status = STATUS_INVALID_PARAMETER_3;
+         break;
+ 
++    case FileReplaceCompletionInformation:
+     case FileCompletionInformation:   /* FILE_COMPLETION_INFORMATION */
+         if (len >= sizeof(FILE_COMPLETION_INFORMATION32))
+         {
+diff --git a/server/fd.c b/server/fd.c
+index fa1026c..bdc04b7 100644
+--- a/server/fd.c
++++ b/server/fd.c
+@@ -3264,6 +3264,25 @@ DECL_HANDLER(set_completion_info)
+     }
+ }
+ 
++/* replace or remove the completion object attached to a fd */
++DECL_HANDLER(replace_completion_info)
++{
++    struct fd *fd = get_handle_fd_obj( current->process, req->handle, 0 );
++    struct completion *completion = NULL, *previous;
++
++    if (!fd) return;
++    if (!is_fd_overlapped( fd )) set_error( STATUS_INVALID_PARAMETER );
++    else if (!req->chandle ||
++             (completion = get_completion_obj( current->process, req->chandle, IO_COMPLETION_MODIFY_STATE )))
++    {
++        previous = fd->completion;
++        fd->completion = completion;
++        fd->comp_key = req->ckey;
++        if (previous) release_object( previous );
++    }
++    release_object( fd );
++}
++
+ /* push new completion msg into a completion queue attached to the fd */
+ DECL_HANDLER(add_fd_completion)
+ {
+diff --git a/server/protocol.def b/server/protocol.def
+index 36db03a..e85b7cc 100644
+--- a/server/protocol.def
++++ b/server/protocol.def
+@@ -4592,3 +4592,11 @@ enum fsync_type
+ @REPLY
+     unsigned int   status;              /* enum hwnd_dmabuf_status */
+ @END
++
++
++/* replace or remove the completion port associated with an object */
++@REQ(replace_completion_info)
++    obj_handle_t handle;        /* object handle */
++    apc_param_t  ckey;          /* new completion key */
++    obj_handle_t chandle;       /* new port handle, or zero to detach */
++@END
+-- 
+2.53.0
+

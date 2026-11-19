@@ -6,10 +6,10 @@
     "windows_client_version": "13.3.5.564315535",
     "installer_architecture": "x64",
     "installer_sha256": "cd8c59735fad840bf6db33b6ea31527b46864bd5169d23e20d134e2132bf020d",
-    "status": "development candidate, installation and startup verified",
-    "monitor_preview": "PipeWire receives frames; companion has not leased frames",
-    "window_preview": "system chooser not triggered",
-    "audio": "Win32 tone captured by PipeWire; companion recording pending",
+    "status": "unreleased development candidate, verified from an empty installation directory",
+    "monitor_preview": "1920x1080 in-app display selection and dynamic preview verified",
+    "window_preview": "828x479 in-app window selection and dynamic preview verified with explicit synchronization",
+    "audio": "880 Hz test tone recovered from the companion's 48 kHz stereo AAC track in a 720p30 local recording",
     "evidence": "docs/CLEAN_INSTALL_TEST.md"
   },
   "baselines": [

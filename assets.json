@@ -1,4 +1,10 @@
 {
+  "wine_source": {
+    "filename": "felix-proton-uu-test.1-modified-wine-source.tar.zst",
+    "url": "https://github.com/liyaomeng202114981-ops/Felix-Proton/releases/download/felix-proton-setup-v0.1.0-preview.1/felix-proton-uu-test.1-modified-wine-source.tar.zst",
+    "sha256": "af0dc50ef991da42aa2c1ccd56eae4f06b7f12a0dd6b38befc00943af86d19da",
+    "max_bytes": 104857600
+  },
   "runner": {
     "filename": "felix-proton-uu-test-0.1.0-test.1.tar.zst",
     "url": "https://github.com/liyaomeng202114981-ops/Felix-Proton/releases/download/felix-proton-setup-v0.1.0-preview.1/felix-proton-uu-test-0.1.0-test.1.tar.zst",

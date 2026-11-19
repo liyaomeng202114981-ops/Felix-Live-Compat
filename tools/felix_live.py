@@ -16,6 +16,7 @@ import sys
 import time
 
 from assets import obtain
+from wine_runtime import install_wine_modules
 
 
 KIT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,8 @@ WINDOW_CLASS = "直播伴侣.exe".encode()
 LAUNCHER = "直播伴侣 Launcher.exe"
 DISPLAY_ENV = ("DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR",
                "XDG_SESSION_TYPE", "DBUS_SESSION_BUS_ADDRESS")
+PREFIX_ENV = {"WINEDEBUG": "-all", "PROTON_LOG": "0", "PROTON_NVIDIA_NVENC": "1",
+              "PROTON_FORCE_NVAPI": "1"}
 
 
 def wine_command(root, *args):
@@ -56,6 +59,7 @@ def install(root, installer, assets, interactive):
     with obtain("runner", assets) as archive:
         subprocess.run(["tar", "--zstd", "-xf", archive, "--no-same-owner", "-C", root], check=True)
     (root / RUNNER_NAME).rename(root / "runner")
+    install_wine_modules(built, root / "runner")
     with obtain("wrapper", assets) as wrapper:
         target = root / "shorin-proton-wrapper"
         shutil.copyfile(wrapper, target)
@@ -63,12 +67,13 @@ def install(root, installer, assets, interactive):
     payload = root / "payload"
     shutil.copytree(built, payload)
     shutil.copy2(payload / "window-stream", payload / "window-stream-interactive")
-    env = os.environ | {"WINEDEBUG": "-all", "WINEDLLOVERRIDES": "winemenubuilder.exe=d"}
+    env = os.environ | PREFIX_ENV | {"WINEDLLOVERRIDES": "winemenubuilder.exe=d"}
     subprocess.run(wine_command(root, "--init"), env=env, check=True)
     arguments = () if interactive else ("/S",)
     subprocess.run(wine_command(root, installer, *arguments), env=env, check=True)
     find_launcher(root)
-    stage_capture(payload, root / "prefix", root / "runner", root / "shorin-proton-wrapper")
+    stage_capture(payload, root / "prefix", root / "runner", root / "shorin-proton-wrapper",
+                  wine_env=env)
     (root / MARKER).write_text("1\n", encoding="ascii")
     print(f"Ready: {root}")
 
@@ -134,8 +139,9 @@ def start_helpers(root, runtime, payload, xid, pid):
     children = []
     try:
         children.append(subprocess.Popen(broker, env=os.environ | {"FELIX_WGC_DYNAMIC_TITLE": "1"}))
-        actions_env = os.environ | {"WINEDEBUG": "-all",
-                                    "PRESSURE_VESSEL_FILESYSTEMS_RW": str(runtime)}
+        actions_env = os.environ | PREFIX_ENV | {
+            "PRESSURE_VESSEL_FILESYSTEMS_RW": str(runtime),
+        }
         children.append(subprocess.Popen(actions, env=actions_env))
         children.append(subprocess.Popen(presenter))
     except OSError:
@@ -170,9 +176,11 @@ def run_session(root, direct):
         raise RuntimeError("A cgroup v2 user session is required")
     membership = Path("/sys/fs/cgroup") / unified.lstrip("/") / "cgroup.procs"
     payload = root / "payload"
-    env = os.environ | app_environment("in-app", payload, runtime)
-    env.update(WINEDEBUG="-all", PROTON_LOG="0", PROTON_NVIDIA_NVENC="1",
-               PROTON_FORCE_NVAPI="1", WINEDLLOVERRIDES="d3d11=n;graphicscapture=n;winemenubuilder.exe=d")
+    env = os.environ | PREFIX_ENV | app_environment("in-app", payload, runtime)
+    env.update(WINEDLLOVERRIDES="d3d11=n;graphicscapture=n;winemenubuilder.exe=d",
+               WINE_LAYERED_OVERLAY_ALPHA="1", WINE_X11_NATIVE_MAXIMIZED_MOVE="1",
+               WINE_X11_NO_FULLSCREEN_LAYERED_HELPER="1",
+               WINE_X11_NO_FULLSCREEN_HELPER_CLASS="Chrome_WidgetWin_1")
     arguments = ["--force-renderer-accessibility=complete"]
     if direct:
         for name in ("http_proxy", "https_proxy", "all_proxy", "ftp_proxy", "no_proxy"):

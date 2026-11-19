@@ -4,7 +4,7 @@
 
 ## 构建兼容包
 
-构建环境需要 Docker、`python3-pefile`、C 编译器、`pkg-config`、`libpipewire-0.3-dev`、`libspa-0.2-dev`、`libdrm-dev`、`libvulkan-dev` 和 `glslang-tools`。在源码目录执行：
+构建环境需要 Docker、`patch`、`python3-pefile`、C 编译器、`pkg-config`、`libpipewire-0.3-dev`、`libspa-0.2-dev`、`libdrm-dev`、`libvulkan-dev` 和 `glslang-tools`。固定的 SteamRT4 SDK 同时用来构建 WGC 组件与 Wine 的 IPC 和 XWayland 模块。在源码目录执行：
 
 ```bash
 sdk=registry.gitlab.steamos.cloud/proton/steamrt4/sdk/x86_64@sha256:6c1789cad862fd8ed9d46d71bbf8752bb7cb2336ab5e9680c0f0e3e7c88d77f1
@@ -19,7 +19,7 @@ cd build/unpacked/Felix-Live-Compat
 
 ## 安装与启动
 
-下载官方 Windows x64 安装器。把 `installer` 指向该文件，把 `target` 指向尚不存在的目录。安装会执行官方安装器，再为这个前缀注册 WGC 和 D3D11 兼容组件。安装器需要交互时可加 `--interactive`，沿用官方默认安装位置。[官方下载](https://streamingtool.douyin.com/)
+下载官方 Windows x64 安装器。把 `installer` 指向该文件，把 `target` 指向尚不存在的目录。工具先在新运行器中安装配套的 Wine IPC 和 XWayland 模块，再执行官方安装器并为该前缀注册 WGC 和 D3D11 组件。安装器需要交互时可加 `--interactive`，沿用官方默认安装位置。[官方下载](https://streamingtool.douyin.com/)
 
 ```bash
 installer="$HOME/Downloads/StreamingTool-x64.exe"

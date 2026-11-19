@@ -12,6 +12,7 @@ import tarfile
 import tempfile
 
 from assets import obtain
+from wine_runtime import MODULES, build_wine_modules
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ DXVK = ("felix-proton-uu-test-0.1.0-test.1/"
 PAYLOAD = ("d3d11.dll", "felix_wgc.dll", "inapp_actions.exe", "felix-wgc-window.exe",
            "window-stream", "vulkan/libfelixwgc.so", "vulkan/VkLayer_felix_wgc.json")
 PACKAGE_FILES = ("README.md", "LICENSE", "THIRD_PARTY.md", "assets.json",
-                 "compatibility.json", "tools", "src", "docs")
+                 "compatibility.json", "tools", "src", "docs", "patches")
 
 
 def build(payload, asset_dir, sysroot):
@@ -37,13 +38,15 @@ def build(payload, asset_dir, sysroot):
             arguments.append(sysroot)
         subprocess.run(arguments, check=True)
         subprocess.run(["sh", CAPTURE / "dmabuf/build_layer.sh", temporary / "vulkan"], check=True)
-        digests = []
         for name in PAYLOAD:
             destination = payload / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(temporary / name, destination)
-            digests.append(f"{hashlib.sha256(destination.read_bytes()).hexdigest()}  {name}")
-        (payload / "SHA256SUMS").write_text("\n".join(digests) + "\n", encoding="ascii")
+    build_wine_modules(payload / "wine-runtime", asset_dir)
+    names = (*PAYLOAD, *(f"wine-runtime/{name}" for name in MODULES))
+    digests = [f"{hashlib.sha256((payload / name).read_bytes()).hexdigest()}  {name}"
+               for name in names]
+    (payload / "SHA256SUMS").write_text("\n".join(digests) + "\n", encoding="ascii")
 
 
 def package(output, payload):

@@ -34,7 +34,7 @@ def stage_files(root, prefix, base_dll, system32):
         os.replace(tmp, target)
 
 
-def register(root, prefix, proton, wrapper):
+def register(root, prefix, proton, wrapper, wine_env):
     lines = ["Windows Registry Editor Version 5.00", ""]
     for name in CLASSES:
         key = (r"HKEY_LOCAL_MACHINE\Software\Microsoft\WindowsRuntime\ActivatableClassId"
@@ -45,10 +45,10 @@ def register(root, prefix, proton, wrapper):
     windows_path = "Z:" + str(path).replace("/", "\\")
     subprocess.run([str(wrapper), "--prefix", str(prefix), "--runner", str(proton),
                     str(prefix / "pfx/drive_c/windows/regedit.exe"), "/S", windows_path], check=True,
-                   env=os.environ | {"WINEDEBUG": "-all"})
+                   env=(os.environ if wine_env is None else wine_env) | {"WINEDEBUG": "-all"})
 
 
-def stage_capture(root, prefix, runner, wrapper):
+def stage_capture(root, prefix, runner, wrapper, *, wine_env=None):
     system32 = inside(prefix / "pfx/drive_c/windows/system32", prefix)
     dxvk_dll = inside(runner / "files/lib/wine/dxvk/x86_64-windows/d3d11.dll", runner)
     base_dll = inside(dxvk_dll.with_name("felix_d3d11_base.dll"), runner)
@@ -63,7 +63,7 @@ def stage_capture(root, prefix, runner, wrapper):
     tmp = inside(dxvk_dll.with_suffix(".trial-tmp"), runner)
     shutil.copyfile(forwarder, tmp)
     os.replace(tmp, dxvk_dll)
-    register(root, prefix, inside(runner / "proton", runner), wrapper)
+    register(root, prefix, inside(runner / "proton", runner), wrapper, wine_env)
 
 
 def main():

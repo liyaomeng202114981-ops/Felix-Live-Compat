@@ -5,9 +5,10 @@
 | 组件 | 来源 |
 | --- | --- |
 | Felix-Proton 运行器、Wine 和 DXVK | [既有 Felix-Proton 发行版及对应源码材料](https://github.com/liyaomeng202114981-ops/Felix-Proton/releases/tag/felix-proton-setup-v0.1.0-preview.1) |
+| Wine IPC 和 XWayland 补丁 | [本仓库的 Wine 补丁与原许可](patches/wine)，在 [固定的 Wine 源码归档](https://github.com/liyaomeng202114981-ops/Felix-Proton/releases/download/felix-proton-setup-v0.1.0-preview.1/felix-proton-uu-test.1-modified-wine-source.tar.zst) 上应用。[构建脚本](tools/build_wine.sh) |
 | shorin-proton-wrapper | [SHORiN-KiWATA/proton-wrapper](https://github.com/SHORiN-KiWATA/proton-wrapper)及[固定版本源码归档](https://github.com/liyaomeng202114981-ops/Felix-Proton/releases/download/felix-proton-setup-v0.1.0-preview.1/proton-wrapper-d8ca9e73-source.tar.gz) |
 | Steam Linux Runtime 和 SDK | [Valve 的 Steam Runtime](https://gitlab.steamos.cloud/steamrt/steam-runtime-tools) |
 | Python Xlib、PyGObject、PipeWire 和 Vulkan | Ubuntu 系统依赖，沿用各自的许可证 |
 | Windows 直播伴侣 | [抖音官方提供安装器](https://streamingtool.douyin.com/) |
 
-本地兼容包收录自有组件的源码和构建产物。安装工具从锁定地址获得运行器与 wrapper，也可读取经 SHA-256 校验的本地副本。官方客户端由用户从官网下载。
+本地兼容包收录自有组件的源码和构建产物，以及随配套源码补丁构建的部分 Wine 模块。Wine 模块与补丁沿用 [Wine 的 LGPL 许可](patches/wine/COPYING.LIB)。安装工具从锁定地址获得运行器与 wrapper，也可读取经 SHA-256 校验的本地副本。官方客户端由用户从官网下载。
