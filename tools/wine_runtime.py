@@ -20,6 +20,7 @@ PATCH_SERIES = (
     "0069-winex11-Opt-in-to-native-maximized-caption-moves.patch",
     "0070-winex11-Keep-profiled-layered-decoration-windows-out-of-fullscreen.patch",
     "0071-winex11-Opt-in-to-an-application-specific-WM-instance.patch",
+    "0072-explorer-Delegate-companion-tray-visibility-to-its-owner.patch",
 )
 WINE_SOURCE = "felix-proton-uu-test.1-modified-wine-source/wine"
 SDK = ("registry.gitlab.steamos.cloud/proton/steamrt4/sdk/x86_64@sha256:"
@@ -29,6 +30,7 @@ MODULES = {
     "ntdll.so": "files/lib/wine/x86_64-unix/ntdll.so",
     "wow64.dll": "files/lib/wine/x86_64-windows/wow64.dll",
     "winex11.so": "files/lib/wine/x86_64-unix/winex11.so",
+    "explorer.so": "files/lib/wine/x86_64-unix/explorer.so",
 }
 
 

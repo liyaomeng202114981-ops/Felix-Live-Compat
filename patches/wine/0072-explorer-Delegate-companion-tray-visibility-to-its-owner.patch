@@ -1,0 +1,148 @@
+From: Felix Li <felix-li@users.noreply.github.com>
+Subject: [PATCH] explorer: Delegate companion tray visibility to its owner.
+
+Keep the original SNI accessible for menu and pixmap forwarding. Only
+accept visibility requests from the launcher-provided bus owner, and
+restore visibility when that owner disconnects.
+
+Co-authored-by: OpenAI Codex <codex@openai.com>
+---
+--- a/programs/explorer/sni.c
++++ b/programs/explorer/sni.c
+@@ -73,6 +73,7 @@
+     DO_FUNC(dbus_message_get_member); \
+     DO_FUNC(dbus_message_get_no_reply); \
+     DO_FUNC(dbus_message_get_path); \
++    DO_FUNC(dbus_message_get_sender); \
+     DO_FUNC(dbus_message_get_type); \
+     DO_FUNC(dbus_message_is_method_call); \
+     DO_FUNC(dbus_message_is_signal); \
+@@ -97,6 +98,8 @@
+ static const char watcher_path[] = "/StatusNotifierWatcher";
+ static const char item_interface[] = "org.kde.StatusNotifierItem";
+ static const char item_path[] = "/StatusNotifierItem";
++static const char companion_id[] = "直播伴侣.exe";
++static const char *merge_owner;
+ 
+ static const char introspection_xml[] =
+     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
+@@ -119,6 +122,7 @@
+     "  <method name=\"Scroll\"><arg name=\"delta\" type=\"i\"/><arg name=\"orientation\" type=\"s\"/></method>\n"
+     "  <signal name=\"NewTitle\"/>\n"
+     "  <signal name=\"NewIcon\"/>\n"
++    "  <signal name=\"NewStatus\"><arg type=\"s\"/></signal>\n"
+     "  <signal name=\"NewToolTip\"/>\n"
+     " </interface>\n"
+     " <interface name=\"org.freedesktop.DBus.Properties\">\n"
+@@ -152,6 +156,7 @@
+     char           *tooltip;
+     UINT           *pixels;
+     UINT            sizes[SNI_MAX_SIZES];
++    BOOL            merged;
+ };
+ 
+ static inline const void *param_ptr( UINT64 ptr )
+@@ -290,6 +295,25 @@
+     p_dbus_message_unref( msg );
+ }
+ 
++static const char *item_status( const struct sni_item *item )
++{
++    return item->merged && !strcmp( item->id, companion_id ) ? "Passive" : "Active";
++}
++
++static void set_merged( struct sni_item *item, BOOL merged )
++{
++    DBusMessage *msg;
++    const char *status;
++
++    if (item->merged == merged) return;
++    item->merged = merged;
++    status = item_status( item );
++    if (!(msg = p_dbus_message_new_signal( item_path, item_interface, "NewStatus" ))) return;
++    p_dbus_message_append_args( msg, DBUS_TYPE_STRING, &status, DBUS_TYPE_INVALID );
++    p_dbus_connection_send( item->connection, msg, NULL );
++    p_dbus_message_unref( msg );
++}
++
+ static void append_string( DBusMessageIter *iter, const char *str )
+ {
+     p_dbus_message_iter_append_basic( iter, DBUS_TYPE_STRING, &str );
+@@ -342,7 +366,7 @@
+     if (!strcmp( name, "Category" )) str = "ApplicationStatus";
+     else if (!strcmp( name, "Id" )) str = item->id;
+     else if (!strcmp( name, "Title" )) str = item->title;
+-    else if (!strcmp( name, "Status" )) str = "Active";
++    else if (!strcmp( name, "Status" )) str = item_status( item );
+     else if (!strcmp( name, "IconName" ) || !strcmp( name, "OverlayIconName" ) ||
+              !strcmp( name, "AttentionIconName" )) str = "";
+ 
+@@ -417,7 +441,7 @@
+ }
+ 
+ /* answer a call from the host; returns TRUE when it is a click to pass on */
+-static BOOL handle_item_message( const struct sni_item *item, DBusMessage *msg, struct sni_event_params *event )
++static BOOL handle_item_message( struct sni_item *item, DBusMessage *msg, struct sni_event_params *event )
+ {
+     const char *path = p_dbus_message_get_path( msg );
+     DBusMessage *reply = NULL;
+@@ -444,6 +468,21 @@
+         reply = get_property( item, msg );
+     else if (p_dbus_message_is_method_call( msg, DBUS_INTERFACE_PROPERTIES, "GetAll" ))
+         reply = get_all_properties( item, msg );
++    else if (p_dbus_message_is_method_call( msg, "io.github.felixli.LiveCompat.Tray", "SetMerged" ))
++    {
++        const char *sender = p_dbus_message_get_sender( msg );
++        dbus_bool_t merged;
++
++        if (!merge_owner || !sender || strcmp( merge_owner, sender ) || strcmp( item->id, companion_id ))
++            reply = p_dbus_message_new_error( msg, DBUS_ERROR_ACCESS_DENIED, "Not this companion's tray bridge" );
++        else if (!p_dbus_message_get_args( msg, NULL, DBUS_TYPE_BOOLEAN, &merged, DBUS_TYPE_INVALID ))
++            reply = p_dbus_message_new_error( msg, DBUS_ERROR_INVALID_ARGS, "Expected a boolean" );
++        else
++        {
++            set_merged( item, merged );
++            reply = p_dbus_message_new_method_return( msg );
++        }
++    }
+     else
+     {
+         if (p_dbus_message_is_method_call( msg, item_interface, "Activate" ))
+@@ -486,6 +525,11 @@
+     if (!p_dbus_message_is_signal( msg, DBUS_INTERFACE_DBUS, "NameOwnerChanged" )) return;
+     if (!p_dbus_message_get_args( msg, NULL, DBUS_TYPE_STRING, &name, DBUS_TYPE_STRING, &old_owner,
+                                   DBUS_TYPE_STRING, &new_owner, DBUS_TYPE_INVALID )) return;
++    if (merge_owner && !strcmp( name, merge_owner ) && !new_owner[0])
++    {
++        LIST_FOR_EACH_ENTRY( item, &items, struct sni_item, entry ) set_merged( item, FALSE );
++        return;
++    }
+     if (strcmp( name, watcher_name ) || !new_owner[0]) return;
+ 
+     TRACE( "new watcher %s, registering the items again\n", debugstr_a(new_owner) );
+@@ -495,6 +539,7 @@
+ static NTSTATUS sni_init( void *args )
+ {
+     DBusError error;
++    const char *owner = getenv( "WINE_FELIX_TRAY_OWNER" );
+     int i;
+ 
+     if (!load_dbus_functions()) return STATUS_NOT_SUPPORTED;
+@@ -526,6 +571,17 @@
+ 
+     p_dbus_bus_add_match( control, "type='signal',sender='" DBUS_SERVICE_DBUS "',interface='" DBUS_INTERFACE_DBUS
+                           "',member='NameOwnerChanged',arg0='org.kde.StatusNotifierWatcher'", NULL );
++    if (owner && strlen( owner ) < 64 && !strncmp( owner, ":1.", 3 ) && owner[3] &&
++        !owner[3 + strspn( owner + 3, "0123456789" )])
++    {
++        char match[256];
++        snprintf( match, sizeof(match), "type='signal',sender='" DBUS_SERVICE_DBUS "',interface='"
++                  DBUS_INTERFACE_DBUS "',member='NameOwnerChanged',arg0='%s'", owner );
++        p_dbus_error_init( &error );
++        p_dbus_bus_add_match( control, match, &error );
++        if (!error.name) merge_owner = owner;
++        p_dbus_error_free( &error );
++    }
+     return STATUS_SUCCESS;
+ }
+ 

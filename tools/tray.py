@@ -16,6 +16,7 @@ from gi.repository import Gio, GLib
 ITEM = "org.kde.StatusNotifierItem"
 WATCHER = "org.kde.StatusNotifierWatcher"
 MENU = "com.canonical.dbusmenu"
+BRIDGE = "io.github.felixli.LiveCompat.Tray"
 ITEM_PATH = "/StatusNotifierItem"
 WATCHER_PATH = "/StatusNotifierWatcher"
 MENU_PATH = "/Menu"
@@ -62,6 +63,8 @@ class Tray:
         self.runtime = runtime
         self.stop_requested = False
         self.native_item = None
+        self.exported = False
+        self.pixmap = GLib.Variant("a(iiay)", [])
         self.revision = 1
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self.loop = GLib.MainLoop()
@@ -70,8 +73,9 @@ class Tray:
             "Id": ("s", unit.removesuffix(".service")),
             "Title": ("s", title),
             "Category": ("s", "ApplicationStatus"),
-            "Status": ("s", "Active"),
-            "IconName": ("s", "camera-video-symbolic"),
+            "Status": ("s", "Passive"),
+            "IconName": ("s", ""),
+            "IconPixmap": ("a(iiay)", []),
             "IconAccessibleDesc": ("s", title),
             "ItemIsMenu": ("b", True),
             "Menu": ("o", MENU_PATH),
@@ -81,7 +85,7 @@ class Tray:
             for name, (kind, _value) in self.properties.items()
         )
         self.item_interface = Gio.DBusNodeInfo.new_for_xml(
-            f'<node><interface name="{ITEM}">{properties_xml}</interface></node>')
+            f'<node><interface name="{ITEM}">{properties_xml}<signal name="NewIcon"/></interface></node>')
         self.menu_items = {
             0: {"children-display": GLib.Variant("s", "submenu")},
             FORCE_QUIT: {"label": GLib.Variant("s", "强制退出（Felix 兼容版）")},
@@ -95,6 +99,8 @@ class Tray:
     def get_property(self, _bus, _sender, _path, interface, name):
         if interface == MENU:
             return GLib.Variant("u", 3)  # DBusMenu protocol version
+        if name == "IconPixmap":
+            return self.pixmap
         return GLib.Variant(*self.properties[name])
 
     def item_properties(self, item, names):
@@ -157,6 +163,11 @@ class Tray:
     def set_native_item(self, owner):
         if self.native_item == owner:
             return
+        if self.native_item:
+            try:
+                self.call(self.native_item, ITEM_PATH, BRIDGE, "SetMerged", "(b)", (False,))
+            except GLib.Error:
+                pass  # The original item can have disappeared with the application.
         self.native_item = owner
         if owner:
             self.menu_items.update(self.application_items)
@@ -166,12 +177,44 @@ class Tray:
         self.revision += 1
         self.bus.emit_signal(None, MENU_PATH, MENU, "LayoutUpdated", GLib.Variant("(ui)", (self.revision, 0)))
 
+    def update_icon(self, owner):
+        pixmap = GLib.Variant("a(iiay)", [])
+        if owner:
+            try:
+                reply = self.bus.call_sync(owner, ITEM_PATH, "org.freedesktop.DBus.Properties", "Get",
+                                           GLib.Variant("(ss)", (ITEM, "IconPixmap")),
+                                           GLib.VariantType.new("(v)"), Gio.DBusCallFlags.NO_AUTO_START,
+                                           800, None)
+                pixmap = reply.get_child_value(0).get_variant()
+                if not pixmap.is_of_type(GLib.VariantType.new("a(iiay)")) or not pixmap.n_children():
+                    return
+                if owner != self.native_item:
+                    self.call(owner, ITEM_PATH, BRIDGE, "SetMerged", "(b)", (True,))
+            except GLib.Error:
+                return  # Leave Wine's original indicator available if it cannot be merged.
+        if owner == self.native_item and pixmap.equal(self.pixmap):
+            return
+        self.set_native_item(owner)
+        self.pixmap = pixmap
+        self.properties["Status"] = ("s", "Active" if owner else "Passive")
+        changed = {"IconPixmap": pixmap, "Status": GLib.Variant(*self.properties["Status"])}
+        self.bus.emit_signal(None, ITEM_PATH, "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                             GLib.Variant("(sa{sv}as)", (ITEM, changed, [])))
+        self.bus.emit_signal(None, ITEM_PATH, ITEM, "NewIcon", None)
+
+    def native_icon_changed(self, _bus, owner, *_args):
+        if self.exported and owner != self.bus.get_unique_name() and (
+                owner == self.native_item or self.native_item is None):
+            self.refresh_native_item()
+
     def refresh_native_item(self, *_args):
+        if not self.exported:
+            return
         try:
             names = self.property_value(WATCHER, WATCHER_PATH, WATCHER, "RegisteredStatusNotifierItems")
         except GLib.Error:
             return
-        self.set_native_item(next((owner for name in names if (owner := self.own_original_item(name))), None))
+        self.update_icon(next((owner for name in names if (owner := self.own_original_item(name))), None))
 
     @staticmethod
     def expire_action(path, inode):
@@ -221,15 +264,17 @@ class Tray:
         connection.call(owner, WATCHER_PATH, WATCHER, "RegisterStatusNotifierItem",
                         GLib.Variant("(s)", (ITEM_PATH,)), None, Gio.DBusCallFlags.NO_AUTO_START,
                         3000, None, self.registration_finished)
-        self.refresh_native_item()
 
     def watcher_vanished(self, *_args):
-        self.set_native_item(None)
+        self.exported = False
+        self.update_icon(None)
 
     def registration_finished(self, connection, result):
         try:
             connection.call_finish(result)
+            self.exported = True
             print(f"Tray registered for {self.unit}", flush=True)
+            self.refresh_native_item()
         except GLib.Error as exc:
             print(f"Tray registration failed: {exc}", file=sys.stderr, flush=True)
 
@@ -241,10 +286,15 @@ class Tray:
         watch_signals = [self.bus.signal_subscribe(WATCHER, WATCHER, signal_name, WATCHER_PATH,
                                                    None, Gio.DBusSignalFlags.NONE, self.refresh_native_item)
                          for signal_name in ("StatusNotifierItemRegistered", "StatusNotifierItemUnregistered")]
+        watch_signals.append(self.bus.signal_subscribe(None, ITEM, "NewIcon", ITEM_PATH, None,
+                                                      Gio.DBusSignalFlags.NONE, self.native_icon_changed))
         watch = Gio.bus_watch_name_on_connection(self.bus, WATCHER, Gio.BusNameWatcherFlags.NONE,
                                                 self.watcher_appeared, self.watcher_vanished)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.loop.quit)
         try:
+            ready = self.runtime / "tray-bus.next"
+            ready.write_text(self.bus.get_unique_name(), encoding="ascii")
+            ready.replace(self.runtime / "tray-bus")
             self.loop.run()
         finally:
             Gio.bus_unwatch_name(watch)

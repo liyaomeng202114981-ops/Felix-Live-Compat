@@ -7,6 +7,7 @@ import argparse
 from contextlib import suppress
 import os
 from pathlib import Path
+import re
 import select
 import shutil
 import signal
@@ -200,7 +201,7 @@ def run_session(root, direct):
             env.pop(name.upper(), None)
         arguments.append("--no-proxy-server")
     launcher = find_launcher(root)
-    subprocess.Popen(wine_command(root, launcher, *arguments), cwd=launcher.parent, env=env)
+    env.pop("WINE_FELIX_TRAY_OWNER", None)
     connection = display.Display()
     children = []
     tray = None
@@ -219,8 +220,20 @@ def run_session(root, direct):
     try:
         try:
             tray = subprocess.Popen([sys.executable, "-B", KIT / "tools/tray.py", unit + ".service"])
+            ready = runtime / "tray-bus"
+            tray_deadline = time.monotonic() + 1
+            while not stopping and tray.poll() is None and time.monotonic() < tray_deadline:
+                if ready.is_file():
+                    name = ready.read_text(encoding="ascii").strip()
+                    if re.fullmatch(r":1\.[0-9]+", name):
+                        env["WINE_FELIX_TRAY_OWNER"] = name
+                    break
+                time.sleep(.025)
         except OSError as exc:
             print(f"Tray could not start: {exc}", file=sys.stderr, flush=True)
+        if stopping:
+            return
+        subprocess.Popen(wine_command(root, launcher, *arguments), cwd=launcher.parent, env=env)
         while not stopping:
             if owner is None:
                 window = main_window(connection, set(membership.read_text().split()))

@@ -24,6 +24,6 @@ cd /work/obj-x86_64
     --enable-win64 --enable-archs=x86_64
 make -j12 __tooldeps__
 make -j12 server/wineserver dlls/ntdll/ntdll.so dlls/wow64/x86_64-windows/wow64.dll \
-    dlls/winex11.drv/winex11.so
+    dlls/winex11.drv/winex11.so programs/explorer/explorer.so
 cp server/wineserver dlls/ntdll/ntdll.so dlls/wow64/x86_64-windows/wow64.dll \
-    dlls/winex11.drv/winex11.so /work/artifacts/
+    dlls/winex11.drv/winex11.so programs/explorer/explorer.so /work/artifacts/
