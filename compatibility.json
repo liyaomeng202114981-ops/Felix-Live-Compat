@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "official_windows_download": "https://streamingtool.douyin.com/",
+  "windows_client_version_source": "installed Windows client build after official update",
+  "baselines": [
+    {
+      "windows_client_version": "13.3.5.564315535",
+      "compatibility_release": null,
+      "environment": "Ubuntu GNOME Wayland with XWayland and Felix-Proton",
+      "evidence_through": "2026-11-19",
+      "felix_proton": {
+        "repository": "https://github.com/liyaomeng202114981-ops/Felix-Proton",
+        "source_commit": "7000fd4d5312d14c20ed2014603e88b64d01b7ee"
+      },
+      "verified": {
+        "dock_restart": "verified",
+        "wayland_monitor_and_window_preview": "verified",
+        "audio_and_local_recording": "verified",
+        "short_live_broadcast": "verified on isolated candidate"
+      },
+      "evidence": {
+        "streaming": "https://github.com/liyaomeng202114981-ops/Felix-Proton/blob/7000fd4d5312d14c20ed2014603e88b64d01b7ee/we/felix-proton/docs/STREAMING_COMPATIBILITY.md",
+        "capture_source": "https://github.com/liyaomeng202114981-ops/Felix-Proton/blob/7000fd4d5312d14c20ed2014603e88b64d01b7ee/we/felix-proton/src/wgc-compat/README.md",
+        "exit_dialog_source": "https://github.com/liyaomeng202114981-ops/Felix-Proton/blob/7000fd4d5312d14c20ed2014603e88b64d01b7ee/we/felix-proton/src/wgc-compat/POPUP_FIRST_PAINT.md"
+      }
+    }
+  ]
+}
