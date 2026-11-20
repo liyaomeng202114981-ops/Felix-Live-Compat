@@ -54,5 +54,18 @@
     "experimental_d3dkmt_0075": false,
     "native_linux_ui": "planning only",
     "validation_scope": "RC3.4 component and isolated UI tests; full clean-install media tests inherited from earlier candidates, not repeated for this release"
+  },
+  "research_snapshot": {
+    "version": "0.2.0-experimental.1",
+    "tag": "v0.2.0-experimental.1",
+    "channel": "experimental source snapshot",
+    "based_on": "v0.1.0-rc.3.4",
+    "daily_install_version_unchanged": "0.1.0-rc.3.4",
+    "sdk_version_verified": "13.3.5.7",
+    "source_results": "experiments/wine-sdk-bridge/results/20261120-initialization.json",
+    "discussion": "docs/FEASIBILITY_DISCUSSION.md",
+    "notes": "docs/releases/0.2.0-experimental.1.md",
+    "development_state": "deferred at user request due to quota; no automatic continuation",
+    "new_runtime_binaries": false
   }
 }

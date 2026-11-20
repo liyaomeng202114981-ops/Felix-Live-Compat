@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<title>Felix 原生 Linux 预览演示</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#151a24;color:#edf2fa;font:15px system-ui,sans-serif}
+main{height:100vh;display:flex;flex-direction:column;padding:22px;gap:16px}
+h1{font-size:21px;margin:0}p{margin:6px 0 0;color:#aeb9cc;line-height:1.6}
+.badge{display:inline-block;padding:4px 9px;border-radius:6px;background:#273c3c;color:#a2e8cd;font-size:12px;margin-left:9px}
+.layout{display:grid;grid-template-columns:155px 1fr;gap:16px;flex:1;min-height:0}
+aside{background:#202736;border-radius:12px;padding:16px}.selected{color:#a2e8cd;margin:15px 0}
+.preview{background:#0e121a;border-radius:12px;position:relative;overflow:hidden;min-height:160px;display:flex;align-items:center;justify-content:center}
+canvas{width:100%;height:100%;object-fit:contain;image-rendering:auto}
+.frame{position:absolute;top:14px;left:14px;background:#10151bdc;padding:8px 12px;border-radius:6px;font-variant-numeric:tabular-nums}
+.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}button{font:inherit;border:0;border-radius:8px;padding:10px 17px;background:#a2e8cd;color:#142821;cursor:pointer}button:active{transform:translateY(1px)}
+.pulse{height:4px;background:#273041;border-radius:4px;overflow:hidden}.pulse i{display:block;height:100%;width:18%;background:#a2e8cd;animation:move 1.6s ease-in-out infinite alternate}@keyframes move{to{transform:translateX(455%)}}
+small{color:#9aa8bd;line-height:1.5}.stats{color:#b6c5db;font-variant-numeric:tabular-nums}
+</style>
+<main>
+ <header><h1>原生 Linux 界面演示<span class="badge">独立测试</span></h1>
+ <p>拖动窗口边缘、最大化或下拖。暂停测试后端时，画面停止，界面应仍可操作。</p></header>
+ <div class="layout"><aside>测试场景<div class="selected">● 自有动态图</div><small>独立进程送帧<br>320 × 180 · 目标 30 Hz<br><br>未连接直播伴侣<br>没有共享桌面或声音</small></aside>
+ <section class="preview"><canvas id="picture" width="320" height="180"></canvas><div class="frame" id="frame">等待测试帧…</div></section></div>
+ <div class="controls"><button id="pause">暂停测试后端</button><span id="state">测试后端运行中</span><span class="stats" id="rate"></span></div>
+ <div class="pulse"><i></i></div>
+ <small>Linux Electron + 独立测试生产者。RGBA 经管道和 CPU 拷贝传递；不是 GPU 零拷贝，也不是完整伴侣性能对照。底部动画只表示界面仍在运行。</small>
+</main>
+<script>
+const stats = window.demoStats = {sequence:0, received:0, ticks:0, backend:'running'};
+const ctx = document.getElementById('picture').getContext('2d', {alpha:false});
+window.previewDemo.onFrame(data => {
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(data.pixels),320,180),0,0);
+  stats.sequence=data.sequence; stats.received++;
+  document.getElementById('frame').textContent='自有测试帧 '+data.sequence;
+  window.previewDemo.acknowledge();
+});
+document.getElementById('pause').onclick=()=>window.previewDemo.pause();
+window.previewDemo.onStatus(state=>{
+  stats.backend=state;
+  document.getElementById('state').textContent=state==='paused'?'后端已暂停 · 可继续缩放和点击':state==='running'?'测试后端运行中':'测试后端已退出';
+  document.getElementById('pause').textContent=state==='paused'?'恢复测试后端':'暂停测试后端';
+});
+function tick(){stats.ticks++;requestAnimationFrame(tick)}requestAnimationFrame(tick);
+let last=0, time=performance.now();
+setInterval(()=>{const now=performance.now();document.getElementById('rate').textContent='接收 '+((stats.received-last)*1000/(now-time)).toFixed(1)+' 帧/秒';last=stats.received;time=now},1000);
+</script></html>

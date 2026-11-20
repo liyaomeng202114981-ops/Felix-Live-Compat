@@ -1,0 +1,31 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+<title>Felix 原生 SDK 快照预览</title>
+<style>
+*{box-sizing:border-box}body{background:#151a24;color:#edf2fa;font:15px system-ui,sans-serif;margin:0}main{padding:26px;height:100vh;display:flex;flex-direction:column;gap:14px}h1{font-size:23px;margin:0}p{color:#b6c4d7;line-height:1.7;margin:0}.stage{background:#0c1119;border-radius:12px;flex:1;min-height:150px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}.stage img{width:100%;height:100%;object-fit:contain}.tag{position:absolute;top:12px;left:12px;background:#151a24dc;padding:6px 10px;border-radius:6px}strong{color:#a2e8cd}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap}button{border:0;border-radius:8px;padding:10px 16px;background:#a2e8cd;color:#15291f;font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.secondary{background:#2b374b;color:#d4deec}.footer{font-size:13px;color:#96a6bf}#result{font-size:14px;color:#c7d5e8;white-space:pre-wrap;margin:0}
+</style>
+<main><h1>Linux 原生界面 · 官方 SDK 快照</h1>
+<p>Linux 按钮 → 独立 Wine 宿主 → 官方媒体服务 → 渲染自有测试图 → 图像返回 Linux。</p>
+<div class="stage"><img id="preview" alt="等待官方 SDK 渲染的测试快照"><span class="tag" id="label">等待测试图像</span></div>
+<div class="controls"><button id="test">重新运行 SDK 图像测试</button><button class="secondary" id="switch" disabled>切换已取回的 A／B 快照</button><strong id="state">正在初始化测试后端…</strong></div>
+<pre id="result"></pre>
+<p class="footer">这是官方 SDK 的两张渲染快照，不是连续视频或零拷贝预览。只用自有测试图，不采集桌面／声音，不开播。每轮测试后结束独立媒体宿主，保留快照供缩放查看。</p></main>
+<script>
+let images=[],phase=0;
+function show(){if(!images.length)return;document.getElementById('preview').src=images[phase].url;document.getElementById('label').textContent='SDK 渲染快照 '+images[phase].phase.toUpperCase()}
+async function refresh(){
+ const button=document.getElementById('test');button.disabled=true;
+ document.getElementById('state').textContent='正在初始化测试后端…';
+ try{
+  const r=await window.sdkBridge.preview();
+  const ok=r.initialized&&r.serverAlive&&r.images?.length===2;
+  document.getElementById('state').textContent=ok?'真实 SDK 图像已返回':'本轮测试未通过';
+  document.getElementById('result').textContent=ok?'SDK '+r.sdkVersion.version+' · 320 × 180 · A／B 场景已更新'+String.fromCharCode(10)+'测试完成，可拖动窗口边缘、最大化和下拖；切换按钮查看两张已取回的图像。':r.previewError||r.initializeError||r.error||'未取得图像';
+  if(ok){images=r.images;phase=0;show();document.getElementById('switch').disabled=false}
+  return r;
+ }finally{button.disabled=false}
+}
+document.getElementById('test').onclick=()=>{window.bridgeDone=refresh()};
+document.getElementById('switch').onclick=()=>{phase=1-phase;show()};
+window.bridgeDone=refresh();
+</script></html>

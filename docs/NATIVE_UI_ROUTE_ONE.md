@@ -1,12 +1,14 @@
 # 路线一：Linux 界面＋Wine 媒体后端
 
-状态：研究规划，未实现。2026-11-20 用户授权在 RC3.4 发行之后整理本路线及预期效果。本文件描述验证顺序和目标，不表示已经批准将日常安装迁移到新架构。RC3.4 发行保持 Windows 运行时和原媒体配置。
+状态：已有独立控制及快照原型，完整界面和连续预览未实现。2026-11-20 用户先授权规划，随后授权低成本尝试并继续定位初始化崩溃；不表示批准迁移日常安装。RC3.4 发行保持 Windows 运行时和原媒体配置。
+
+本地开发原型已能从 Linux 界面启动独立 Wine 宿主，按已安装客户端的原产品配置初始化官方媒体 SDK，读取 `13.3.5.7`，并让 SDK 渲染、切换自有 320×180 测试场景后返回两张快照。初始 metasecml.dll 退出通过补齐原产品上下文解决，没有提供账号／设备标识或修改检查。本结果缩小了后端可分离性的不确定性，但不等于 P2 全部能力或 P3 的持续 GPU 预览已通过。[代码、复跑与边界](../experiments/wine-sdk-bridge/README.md)
 
 ## 要解决的问题
 
 让窗口缩放、最大化、拖动、菜单和托盘更多地由 Linux 运行时处理，同时尽可能保留已跑通的媒体采集、混合、编码及官方业务。现有默认配置的主要缩放阻塞在输出表面重建与同步等待，未发现布局计算占据主要耗时。[当前测量](UI_RESIZE_ASSESSMENT.md)
 
-当前伴侣不是可直接换壳的纯网页。本机 `13.3.5.564315535` 有 14 个 `.node`，抽查 12 个为 Windows PE，包含 MediaSDK、PipeSDK、快捷键和可见性等插件。Linux Electron 不能直接装载它们；私有引擎扩展也可能无法由标准 Electron 替代。此次没有证明原媒体后端能脱离原 UI 单独运行。[Electron 进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model) · [原生模块的平台和 ABI 要求](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules)
+当前伴侣不是可直接换壳的纯网页。本机 `13.3.5.564315535` 有 14 个 `.node`，抽查 12 个为 Windows PE，包含 MediaSDK、PipeSDK、快捷键和可见性等插件。Linux Electron 不能直接装载它们；私有引擎扩展也可能无法由标准 Electron 替代。目前仅证明独立 SDK 初始化和自有场景快照，尚未覆盖完整媒体业务与前端。[Electron 进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model) · [原生模块的平台和 ABI 要求](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules)
 
 ## 目标结构展示
 
@@ -79,3 +81,7 @@ P1 仅证明自有桥能工作，不证明官方客户端已经移植。P2 是�
 本地协议需要有版本号、能力查询、请求 ID、取消和退出通知；套接字放在 0700 的运行目录并校验本地对端身份。优先继承服务组管理，不提供任意进程调用入口。截图、账号、Cookie、令牌和官方私有资源不进入公开源码与示意材料。
 
 后续 Windows 客户端更新可能改变插件 ABI、IPC 和前端调用。每个兼容组合须固定版本与能力清单，未匹配时拒绝迁移，回到已验证的 Windows UI 路径。停止原型并继续使用 RC3.4 即是第一阶段回退方式；完成独立验收前不写入日常配置，也不自动升级入口。
+
+## 当前交接状态
+
+用户因额度紧张暂缓进一步开发，保存为 0.2.0-experimental.1 实验源码快照。日常 RC3.4 不切换、不自动继续任务。完整核心需求的复杂度和恢复顺序见[讨论记录](FEASIBILITY_DISCUSSION.md)。

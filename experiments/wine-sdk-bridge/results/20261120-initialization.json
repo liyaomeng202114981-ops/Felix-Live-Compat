@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "date": "2026-11-20",
+  "client_build": "13.3.5.564315535",
+  "windows_engine": "36.4.0-rs.31.release.lynx41.32",
+  "linux_engine": "39.2.7",
+  "sdk_version": "13.3.5.7",
+  "isolated_runtime": "existing private 0075 experiment; held constant, not daily RC3.4",
+  "isolated_gdi32_sha256": "44f32cea0e9599240b0b5673ad284e8e570ff76d349ee2dc54ea20f78c2577fc",
+  "cases": [
+    {
+      "configuration": "minimal_without_sign_info",
+      "initialized": false,
+      "exit_code": "0xc0000409"
+    },
+    {
+      "configuration": "empty_sign_info",
+      "initialized": false,
+      "exit_code": "0xc0000409",
+      "module": "metasecml.dll",
+      "module_rva": "0x2c6525",
+      "module_image_size": "0x73a000"
+    },
+    {
+      "configuration": "original_installed_client_product_context",
+      "initialized": true,
+      "server_alive_at_query": true,
+      "account_identifiers_provided": false,
+      "sdk_version": "13.3.5.7"
+    }
+  ],
+  "snapshot_checks": {
+    "a": {
+      "size": [
+        320,
+        180
+      ],
+      "all_rgb_pixels_match": true
+    },
+    "b": {
+      "size": [
+        320,
+        180
+      ],
+      "all_rgb_pixels_match": true
+    }
+  },
+  "linux_ui_integration_passed": true,
+  "not_validated": [
+    "continuous frames",
+    "GPU zero-copy preview",
+    "original full UI migration",
+    "audio and encoding",
+    "live broadcast",
+    "new original-RC3.4-gdi32 comparison"
+  ],
+  "daily_protections_unchanged": true
+}

@@ -27,6 +27,8 @@
 
 ## 界面性能与后续规划
 
+**实验归档 `0.2.0-experimental.1`** 保存原生 UI 演示、独立 Wine SDK 控制及 A／B 渲染快照原型，属于源码快照，不是日常安装升级。用户因额度紧张暂缓继续开发，RC3.4 保持。[实验版本](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.2.0-experimental.1) · [方案讨论与可行性](docs/FEASIBILITY_DISCUSSION.md) · [交接与待办](docs/releases/0.2.0-experimental.1.md)
+
 当前发行保持日常版已验证的图形参数。ANGLE Vulkan 在独立候选中改善缩放刷新代理，但高频 CPU 和媒体回归仍有边界，没有设为发行默认，也未加入实验 GPU 优先级接口。[分段测量与实验边界](docs/UI_RESIZE_ASSESSMENT.md)
 
 后续研究将评估「Linux 界面＋Wine 媒体后端」，先验证原生界面与后端能否独立通信及显示测试预览，再决定是否迁移原界面。此路线尚未实现，不是本包已具备的功能。[分阶段规划与预期体验](docs/NATIVE_UI_ROUTE_ONE.md)
