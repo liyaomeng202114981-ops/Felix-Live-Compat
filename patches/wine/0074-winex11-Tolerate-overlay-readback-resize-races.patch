@@ -1,0 +1,51 @@
+From: Felix Li <2524369985@qq.com>
+Subject: [PATCH] winex11: Tolerate destination changes during overlay readback.
+
+The composed destination may shrink or become unmapped after its geometry
+was sampled. XShmGetImage already traps readback errors, but its XGetImage
+fallback used Xlib's fatal default error path. Resizing the companion could
+therefore terminate its Media SDK process while the Electron UI survived.
+
+Trap only expected drawable-lifetime/geometry errors for this readback,
+keep the current input shape and retry on a later present. Do not change
+the image content, capture transport, audio or renderer selection.
+
+Co-Authored-By: OpenAI Codex <noreply@openai.com>
+
+--- a/dlls/winex11.drv/init.c
++++ b/dlls/winex11.drv/init.c
+@@ -568,6 +568,13 @@
+     client_surface_update_offscreen( hwnd, surface );
+ }
+ 
++/* The destination can shrink or become unmapped between geometry and readback. */
++static int overlay_read_error( Display *display, XErrorEvent *event, void *arg )
++{
++    return event->error_code == BadMatch || event->error_code == BadDrawable ||
++           event->error_code == BadWindow;
++}
++
+ #ifdef HAVE_LIBXXSHM
+ static int overlay_xshm_error( Display *display, XErrorEvent *event, void *arg )
+ {
+@@ -736,9 +743,17 @@
+         }
+     }
+ #endif
+-    if (!image &&
+-        !(image = XGetImage( gdi_display, drawable, 0, 0, width, height, AllPlanes, ZPixmap )))
+-        return TRUE;
++    if (!image)
++    {
++        X11DRV_expect_error( gdi_display, overlay_read_error, NULL );
++        image = XGetImage( gdi_display, drawable, 0, 0, width, height, AllPlanes, ZPixmap );
++        if (X11DRV_check_error())
++        {
++            if (image) XDestroyImage( image );
++            return TRUE;
++        }
++        if (!image) return TRUE;
++    }
+ 
+     direct = image_is_native_32bpp( image );
+ 

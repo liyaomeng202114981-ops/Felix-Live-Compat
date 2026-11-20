@@ -53,6 +53,7 @@ class GpuReader {
     void fail(const char *operation, LONG code) {
         char message[128];
         snprintf(message, sizeof(message), "FelixWgcGpu %s failed (%ld)", operation, code);
+        std::fprintf(stderr, "%s\n", message);
         OutputDebugStringA(message);
         gpu_retry_after.store(GetTickCount64() + 500);
         failed_ = true;

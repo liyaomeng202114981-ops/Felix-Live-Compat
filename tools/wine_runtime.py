@@ -22,6 +22,7 @@ PATCH_SERIES = (
     "0071-winex11-Opt-in-to-an-application-specific-WM-instance.patch",
     "0072-explorer-Delegate-companion-tray-visibility-to-its-owner.patch",
     "0073-winex11-Keep-profiled-invisible-decorations-transparent.patch",
+    "0074-winex11-Tolerate-overlay-readback-resize-races.patch",
 )
 WINE_SOURCE = "felix-proton-uu-test.1-modified-wine-source/wine"
 SDK = ("registry.gitlab.steamos.cloud/proton/steamrt4/sdk/x86_64@sha256:"

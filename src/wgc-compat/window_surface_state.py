@@ -103,9 +103,15 @@ class SurfaceState:
                        and r.x + r.width > 0 and r.y + r.height > 0 for r in rectangles)
 
     def check(self):
-        if not self.belongs(self.parent):
-            raise ValueError("Companion window identity changed")
-        self.update_owner()
+        try:
+            if not self.belongs(self.parent):
+                raise ValueError("Companion window identity changed")
+            if self.parent.get_attributes().map_state == X.IsViewable:
+                self.update_owner()
+        except error.XError:
+            # Mapping and geometry can change between querying the owner and
+            # reading its pixels. Retry on the next event or fallback tick.
+            pass
         active = set()
         clients = self.root.get_full_property(self.atom("_NET_CLIENT_LIST"), Xatom.WINDOW)
         windows = (self.connection.create_resource_object("window", int(xid))

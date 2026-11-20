@@ -1,5 +1,31 @@
 # 从零安装验收
 
+## RC3.3 窗口采集中缩小伴侣丢画面
+
+2026-11-20 用户指出窗口采集中缩小伴侣后画面消失，要求直接查看屏幕。原 Dock 版使用自有 `Felix Resize Capture Test` 自动复现，明确区分两条故障链：
+
+1. Python `window_surface_state.py` 在窗口隐藏或尺寸变化后继续 `XGetImage`，未捕获的 `BadMatch` 使维护程序退出，启动器随后结束兼容会话。
+2. 修正第一项后，主界面仍在，但媒体子进程退出。服务日志记录 Xlib 原生 `BadMatch`，请求号 73（`X_GetImage`）；Media SDK 同时记录崩溃，随后 IPC 连续超时。DMA-BUF 两秒 ACK 超时关流发生在后面，属于结果。只保留租借并延长等待的试验没有恢复预览，已撤回，最终包保留原有的有界等待。
+
+### 修正与源码对应
+
+- [表面维护](../src/wgc-compat/window_surface_state.py)：未映射时跳过像素读取；映射状态与读取之间的 X11 瞬时异常由下一事件／兜底检查重试。
+- [0074 原生补丁](../patches/wine/0074-winex11-Tolerate-overlay-readback-resize-races.patch)：透明输入形状维护已有 XShm 错误保护，但其 `XGetImage` 回退没有。仅在该读取请求范围捕获 `BadMatch`、`BadDrawable`、`BadWindow`，保留当前输入形状，后续 present 重试。其他 X11 错误继续原路径，不修改采集内容或编码。
+- [构建清单](../tools/wine_runtime.py) 从锁定源码依序应用 0066–0074。GPU UI、DMA-BUF、声音、直连及 UnityCapture 回退配置保持。
+- [隔离回归](../src/wgc-compat/test_window_surface_state.py) 覆盖隐藏主窗跳过采样、读取竞态和后续输入范围恢复，在独立 Xvfb 通过两项测试。固定 SDK 的 Wine Werror 构建通过。
+
+### 现场验证
+
+原生组件在伴侣退出后安装，再从同一入口重开。八轮连续缩放共 336 次宽度变化，保留同一服务会话、媒体进程和窗口 socket。每轮直接检查伴侣像素，均有有效红／绿测试画面；结束后六次时间采样同时读到红色和绿色，截图帧号继续增长。另做八次宽高组合变化，媒体进程持续存活；按 GNOME 当前绑定的 Super+H 实际最小化（WM_STATE=Iconic、HIDDEN），从同一窗口恢复后再次采到红／绿变化。验证仅针对自有窗口与本轮缩放故障；未开播，未重做用户已取消的整套共享／音频测试。
+
+### 回退
+
+关闭兼容版后使用此前保留的 RC3.1 包恢复 `winex11.so` 和 `window_surface_state.py`。账号前缀、声音和网络配置无需替换。RC3.2 是只含 Python 保护的中间包，未解决第二项，不作为该故障的通过版本。RC3.3 本地补充包尚未再次进行空前缀安装；此前 RC3 从零安装的结论不等同于本轮新包从零验收。
+
+```bash
+xvfb-run -a /usr/bin/python3 -B src/wgc-compat/test_window_surface_state.py
+```
+
 ## RC3 从零重装与后续 UI 修正
 
 2026-11-20 将现有安装和入口完整备份，再用 RC3 原包及官方 Windows 安装器在同一路径创建全新前缀。五个 Wine 模块、安装后的 UI 脚本和原图标均与包内文件一致。用户扫码进入，确认启动时有短暂停顿。后续指出放大时偶尔露出后方桌面，此现象有别于此前整块白屏。
