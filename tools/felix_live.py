@@ -155,6 +155,9 @@ def start_helpers(root, runtime, payload, xid, pid):
         }
         children.append(subprocess.Popen(actions, env=actions_env))
         children.append(subprocess.Popen(presenter))
+        children.append(subprocess.Popen([
+            sys.executable, "-B", SOURCE / "window_surface_state.py", str(pid), hex(xid),
+        ]))
     except OSError:
         stop_helpers(children)
         raise
