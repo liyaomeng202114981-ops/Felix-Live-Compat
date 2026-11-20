@@ -26,6 +26,12 @@ class SurfaceState:
         self.watched = set()
         self.root.change_attributes(event_mask=X.PropertyChangeMask | X.SubstructureNotifyMask)
         self.watch(self.parent)
+        self.opaque_background = (self.parent.get_geometry().depth == 32
+                                  and self.parent.get_wm_transient_for() is None)
+        if self.opaque_background:
+            # Wine initializes the ARGB background to transparent black. Fill new
+            # owner pixels with the companion's dark background until it repaints.
+            self.parent.change_attributes(background_pixel=0xff222222)
 
     def watch(self, window):
         if window.id in self.watched:
@@ -138,6 +144,11 @@ class SurfaceState:
         self.connection.flush()
 
     def close(self):
+        if self.opaque_background:
+            try:
+                self.parent.change_attributes(background_pixel=0)
+            except error.XError:
+                pass
         for xid in tuple(self.hidden):
             try:
                 self.restore_helper(xid)
