@@ -8,7 +8,7 @@
 
 ## 安装与源码
 
-本地整合候选 `0.1.0-rc.3.4` 适配官方 Windows 客户端 `13.3.5.564315535`，支持在空目录安装。兼容版本号和官方客户端版本分别登记在 [版本表](compatibility.json)。
+预发行候选 `0.1.0-rc.3.4` 适配官方 Windows 客户端 `13.3.5.564315535`，支持在空目录安装。兼容版本号和官方客户端版本分别登记在 [版本表](compatibility.json)。[发行说明与下载](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.1.0-rc.3.4) · [本次变更、验证与回退](docs/releases/0.1.0-rc.3.4.md)
 
 - GNOME Dock 和应用网格共用独立入口，使用官方安装提取的红底白环图标。顶栏只显示一个托盘，保留打开、重置窗口、正常退出和原菜单，再加仅作用于该安装的强制退出。
 - Wine 配套模块包括媒体 SDK 所需的 IPC、透明辅助窗、原生最大化拖动和窗口标识修正。退出确认框沿用 24 毫秒稳定等待。
@@ -24,6 +24,12 @@
 [从零安装与本地打包](docs/INSTALL.md) · [安装验收](docs/CLEAN_INSTALL_TEST.md) · [来源与许可](THIRD_PARTY.md)
 
 [Wayland 采集与 WGC](src/wgc-compat/README.md) · [退出确认框](src/wgc-compat/POPUP_FIRST_PAINT.md)
+
+## 界面性能与后续规划
+
+当前发行保持日常版已验证的图形参数。ANGLE Vulkan 在独立候选中改善缩放刷新代理，但高频 CPU 和媒体回归仍有边界，没有设为发行默认，也未加入实验 GPU 优先级接口。[分段测量与实验边界](docs/UI_RESIZE_ASSESSMENT.md)
+
+后续研究将评估「Linux 界面＋Wine 媒体后端」，先验证原生界面与后端能否独立通信及显示测试预览，再决定是否迁移原界面。此路线尚未实现，不是本包已具备的功能。[分阶段规划与预期体验](docs/NATIVE_UI_ROUTE_ONE.md)
 
 ## 跟随 Windows 版
 

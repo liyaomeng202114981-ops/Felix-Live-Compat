@@ -5,7 +5,7 @@
   "local_candidate": {
     "compatibility_version": "0.1.0-rc.3.4",
     "windows_client_version": "13.3.5.564315535",
-    "distribution": "local candidate",
+    "distribution": "GitHub prerelease candidate",
     "packaging": "clean installation with the official Windows installer"
   },
   "clean_install_candidate": {
@@ -40,5 +40,19 @@
         "exit_dialog_source": "https://github.com/liyaomeng202114981-ops/Felix-Proton/blob/7000fd4d5312d14c20ed2014603e88b64d01b7ee/we/felix-proton/src/wgc-compat/POPUP_FIRST_PAINT.md"
       }
     }
-  ]
+  ],
+  "release": {
+    "tag": "v0.1.0-rc.3.4",
+    "channel": "prerelease",
+    "date": "2026-11-20",
+    "windows_client_version": "13.3.5.564315535",
+    "source_baseline": "c254dd5c80f6993ecdb9157fd8268a6064fc738d",
+    "tested_component_commit": "de12dde",
+    "notes": "docs/releases/0.1.0-rc.3.4.md",
+    "ui_renderer": "unchanged from the verified RC3.4 defaults",
+    "experimental_angle_vulkan": false,
+    "experimental_d3dkmt_0075": false,
+    "native_linux_ui": "planning only",
+    "validation_scope": "RC3.4 component and isolated UI tests; full clean-install media tests inherited from earlier candidates, not repeated for this release"
+  }
 }

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "version": "0.1.0-rc.3.4",
+  "tag": "v0.1.0-rc.3.4",
+  "date": "2026-11-20",
+  "tested_component_commit": "de12dde",
+  "public_source_baseline": "c254dd5c80f6993ecdb9157fd8268a6064fc738d",
+  "assembly": "Repack the verified RC3.4 payload with release metadata and planning documents; no new native compilation.",
+  "base_archive_sha256": "11289ed14fa0ac7f01b87634215ed13bca7055be8cdfc1896fc729375799dc85",
+  "base_archive_sources_match_tested_commit": true,
+  "payload_matches_installed_rc34": true,
+  "payload": [
+    {
+      "path": "d3d11.dll",
+      "sha256": "2bf68a4fd344e6c1a6f6efd5983ce94523933fce9b7f09535d040d435e1603a2"
+    },
+    {
+      "path": "felix_wgc.dll",
+      "sha256": "60c3c3637023f514ba6d95f8661d9184859ce352bcfdb4b477b517dad8e8346a"
+    },
+    {
+      "path": "inapp_actions.exe",
+      "sha256": "eadf124482a7659b0387e930c081b7a5129c4ac774018ca838d0b35b956ee769"
+    },
+    {
+      "path": "felix-wgc-window.exe",
+      "sha256": "b21adef797bcaf96d8996bcd840e8d6ec233b41959c6425549b46031ebc64089"
+    },
+    {
+      "path": "window-stream",
+      "sha256": "a35eb74fe5183dc7fad5a2389fc32de082ceac829f6e7388920e09709650a4c6"
+    },
+    {
+      "path": "vulkan/libfelixwgc.so",
+      "sha256": "fe326378def1523a58ca92029733fb2ff93760c6ce13d6b8a7e3f37c00790c2e"
+    },
+    {
+      "path": "vulkan/VkLayer_felix_wgc.json",
+      "sha256": "e1c4f8c3aefacada3a86c094e544c7dfc93aa37fa8dce40a5ba70e1e02a4a083"
+    },
+    {
+      "path": "wine-runtime/wineserver",
+      "sha256": "42338264794e0d826297d84c5dd3d91deb341193a7183cd9b9834f9e0ca19a88"
+    },
+    {
+      "path": "wine-runtime/ntdll.so",
+      "sha256": "cd3a6e4948e872eccb1cec55ada92b72cfa9b59f088c6389b6ce40e60301a1ee"
+    },
+    {
+      "path": "wine-runtime/wow64.dll",
+      "sha256": "c1ebce74ef1bb698ff54b5a9144a251b201b28bb7d35d61665acdb4148258125"
+    },
+    {
+      "path": "wine-runtime/winex11.so",
+      "sha256": "205ff787c2edb3b674e59dc85f7f8016780e7b5580b7020bbc85ccbdd36d5980"
+    },
+    {
+      "path": "wine-runtime/explorer.so",
+      "sha256": "3e3f66cd4ad285b546a36d1cb30757c05d3ad5d636846e39cfc6850aad01b571"
+    }
+  ],
+  "current_checks": {
+    "isolated_xvfb_surface_tests": 4,
+    "isolated_xvfb_popup_tests": 3,
+    "python_syntax_files": 18,
+    "json_and_shell_syntax": "passed",
+    "dependency_preflight": "passed"
+  },
+  "inherited_validation": "See CLEAN_INSTALL_TEST.md and releases/0.1.0-rc.3.4.md for earlier clean-install and media checks.",
+  "not_repeated_this_release": [
+    "empty-prefix interactive installation",
+    "monitor and window portal authorization",
+    "local audio/video recording",
+    "live broadcast",
+    "viewer-side quality"
+  ],
+  "excluded_experiments": [
+    "ANGLE Vulkan profile",
+    "D3DKMT 0075",
+    "native Linux UI prototype"
+  ],
+  "runtime_defaults_changed": false
+}
