@@ -44,6 +44,22 @@ class SurfaceReadRaceTest(unittest.TestCase):
         return (max(r.x + r.width for r in rectangles),
                 max(r.y + r.height for r in rectangles))
 
+    def test_resize_checks_reuse_connection_atom_ids(self):
+        with patch.object(self.connection, "intern_atom", side_effect=AssertionError("atom round trip")):
+            self.state.check()
+            self.state.check()
+        self.connection.sync()
+        self.assertEqual(self.input_extent(), (900, 650))
+
+    def test_known_window_resize_does_not_enumerate_all_clients(self):
+        self.state.check()
+        self.stale_input()
+        with patch.object(self.state.root, "get_full_property",
+                          side_effect=AssertionError("client discovery during known resize")):
+            self.state.check(refresh_clients=False)
+        self.connection.sync()
+        self.assertEqual(self.input_extent(), (900, 650))
+
     def test_hidden_owner_is_not_sampled(self):
         self.parent.unmap()
         self.connection.sync()

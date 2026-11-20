@@ -18,12 +18,19 @@ class SurfaceState:
         self.root = connection.screen().root
         self.pid = pid
         self.parent = connection.create_resource_object("window", parent_xid)
-        self.atom = connection.intern_atom
+        # Atom IDs live for this X server connection; avoid a synchronous
+        # InternAtom round trip on each property read and resize event.
+        atoms = {name: connection.intern_atom(name) for name in (
+            "_NET_WM_PID", "_NET_WM_WINDOW_OPACITY", "_GTK_FRAME_EXTENTS",
+            "_NET_CLIENT_LIST", "_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN",
+        )}
+        self.atom = atoms.__getitem__
         self.window_class = self.parent.get_wm_class()
         if self.owner(self.parent) != pid or not self.window_class:
             raise ValueError("The companion owner could not be verified")
         self.hidden = {}
         self.watched = set()
+        self.clients = {}
         self.root.change_attributes(event_mask=X.PropertyChangeMask | X.SubstructureNotifyMask)
         self.watch(self.parent)
         self.opaque_background = (self.parent.get_geometry().depth == 32
@@ -102,7 +109,7 @@ class SurfaceState:
         return not any(r.x < geometry.width and r.y < geometry.height
                        and r.x + r.width > 0 and r.y + r.height > 0 for r in rectangles)
 
-    def check(self):
+    def check(self, refresh_clients=True):
         try:
             if not self.belongs(self.parent):
                 raise ValueError("Companion window identity changed")
@@ -113,13 +120,24 @@ class SurfaceState:
             # reading its pixels. Retry on the next event or fallback tick.
             pass
         active = set()
-        clients = self.root.get_full_property(self.atom("_NET_CLIENT_LIST"), Xatom.WINDOW)
-        windows = (self.connection.create_resource_object("window", int(xid))
-                   for xid in clients.value) if clients is not None else ()
-        for window in windows:
+        if refresh_clients:
+            clients = self.root.get_full_property(self.atom("_NET_CLIENT_LIST"), Xatom.WINDOW)
+            owned = {}
+            for xid in clients.value if clients is not None else ():
+                window = self.connection.create_resource_object("window", int(xid))
+                try:
+                    if self.belongs(window):
+                        owned[window.id] = window
+                except error.XError:
+                    pass
+            self.clients = owned
+        for window in self.clients.values():
             try:
-                if self.belongs(window):
-                    self.watch(window)
+                if not self.belongs(window):
+                    continue
+                self.watch(window)
+                if window.id == self.parent.id:
+                    continue
                 # Keep a verified decoration hidden across transient resize shapes.
                 # Wine can briefly give it a full bounding region before repainting.
                 if not (self.invisible_helper(window)
@@ -182,29 +200,42 @@ def main():
     try:
         state.check()
         fallback = time.monotonic() + 2
+        next_check = time.monotonic()
+        changed = refresh_clients = False
         while not stopped:
+            deadline = min(fallback, next_check) if changed else fallback
             ready, _, _ = select.select(
-                [owner, connection.fileno()], [], [], max(0, fallback - time.monotonic()),
+                [owner, connection.fileno()], [], [], max(0, deadline - time.monotonic()),
             )
             if owner in ready:
                 break
-            changed = False
             while connection.pending_events():
                 event = connection.next_event()
                 if event.type == X.DestroyNotify:
                     state.watched.discard(event.window.id)
-                if event.type in (X.CreateNotify, X.MapNotify, X.ConfigureNotify, X.DestroyNotify):
-                    changed = True
+                    state.clients.pop(event.window.id, None)
+                if event.type in (X.CreateNotify, X.MapNotify, X.DestroyNotify):
+                    changed = refresh_clients = True
+                elif event.type == X.ConfigureNotify:
+                    changed |= event.window.id in state.watched
                 elif event.type == X.PropertyNotify:
+                    refresh_clients |= event.atom == state.atom("_NET_CLIENT_LIST")
                     changed |= event.atom in {
                         state.atom("_NET_CLIENT_LIST"), state.atom("_NET_WM_STATE"),
                         state.atom("_NET_WM_WINDOW_OPACITY"),
                     }
                 elif hasattr(event, "shape_kind"):
                     changed = True
-            if changed or time.monotonic() >= fallback:
-                state.check()
-                fallback = time.monotonic() + 2
+            now = time.monotonic()
+            expired = now >= fallback
+            if expired or (changed and now >= next_check):
+                state.check(refresh_clients=refresh_clients or expired)
+                # Coalesce resize/property/shape bursts into a 60 Hz maintenance
+                # tick instead of synchronous readback for every event.
+                next_check = time.monotonic() + 1 / 60
+                if expired or refresh_clients:
+                    fallback = time.monotonic() + 2
+                changed = refresh_clients = False
     finally:
         state.close()
         connection.close()

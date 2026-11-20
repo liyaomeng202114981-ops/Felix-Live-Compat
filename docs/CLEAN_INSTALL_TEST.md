@@ -1,5 +1,28 @@
 # 从零安装验收
 
+## RC3.4 缩放维护开销
+
+2026-11-20 用户反馈缩放明显卡顿。RC3.3 解决了退出／丢帧，不代表缩放体验通过。本轮用同一自有测试窗做 144 次、7.2 秒的尺寸变更样本，读取服务组各进程 CPU 时间和 XDamage 通知。
+
+### 观测与保留的改动
+
+- 当前 Electron renderer 和 GPU 子进程在该压力样本中开销较高；暂停外部维护后，主要进程开销没有明显下降，因此不能把所有卡顿归因于维护程序。
+- [表面维护](../src/wgc-compat/window_surface_state.py) 原每次检查约 48 个同步 X11 请求。固定 Atom 缓存后减少重复 InternAtom；提前排除其他进程和主窗，缓存已发现的客户端；创建／映射／销毁／客户端列表变化时刷新，并保留独立两秒兜底。缓存中的窗口每次仍核对身份，避免将缓存当作授权。
+- 合并同一帧内的结构、属性和 Shape 事件，维护检查最多约每 16.7 毫秒一次。此上限只作用于外部 UI 状态维护，不修改采集帧率、编码或音频。
+- 相同会话前后的短样本中，维护程序单核 CPU 约 12.5% → 8.2%。更早的原版样本在 13%–16% 左右。XDamage 通知间隔的 95 分位仍约 30–33 毫秒，没有可靠的整体流畅度改善结论；XDamage 通知也不能直接当作完整界面帧率或输入延迟。
+
+### 已撤回的试验
+
+- `--force-renderer-accessibility=basic` 仍能完成 UIA 选窗和首帧，但本轮性能没有改善，恢复 `complete`。
+- 强制 ANGLE D3D11／Vulkan 并关闭 DirectComposition 的启动试验出现 Wine 未实现 `D3DKMTGetProcessSchedulingPriorityClass` 的中止日志，未取得可用硬件后端的结论，全部撤回。保留原 GPU 参数；没有用伪成功接口掩盖缺口。GPU 子进程现有命令行含 `swiftshader-webgl`，这只是界面后端证据，不代表直播编码使用软件。
+- Chromium 的模式取值见[官方辅助功能文档](https://chromium.googlesource.com/chromium/src/+/main/docs/accessibility/overview.md)。Electron 官方也记录过 Windows 缩放呈现问题与图形后端有关，但不能直接当作本机原因：[窗口缩放分析](https://www.electronjs.org/blog/tech-talk-window-resize-behavior)。
+
+### 验证与回退
+
+四项隔离回归通过，包括隐藏窗口跳过读取、读取竞态恢复、Atom 缓存和已知窗口缩放不重新枚举全部客户端；既有不透明主窗、辅助角色、其他 PID 拒绝和属性恢复对照通过。原 Dock 重开后，在单一自有素材下完成 336 次宽度变化和实际最小化恢复，媒体进程、socket 和红／绿动态像素保持；前一轮试验场景的四个过期自有测试素材曾遮挡画面，已先备份再仅清理这些记录。本轮保留原 Wine 0074 和原渲染参数，不更改声音、直连、UnityCapture 或账户前缀，不开播、不发布。整体缩放卡顿仍是开放问题。
+
+回退只需关闭伴侣后，从 RC3.3 包恢复 `src/wgc-compat/window_surface_state.py` 到安装的 `launcher/src/wgc-compat/`，无需替换 Proton 模块或重建前缀。
+
 ## RC3.3 窗口采集中缩小伴侣丢画面
 
 2026-11-20 用户指出窗口采集中缩小伴侣后画面消失，要求直接查看屏幕。原 Dock 版使用自有 `Felix Resize Capture Test` 自动复现，明确区分两条故障链：
