@@ -1,0 +1,126 @@
+--- a/dlls/winex11.drv/window.c
++++ b/dlls/winex11.drv/window.c
+@@ -121,6 +121,7 @@
+     {'_','_','w','i','n','e','_','w','i','n','3','2','u','_','f','r','a','m','e','l','e','s','s',0};
+ 
+ static void update_layered_helper_frame_extents( struct x11drv_win_data *data );
++static BOOL suppress_layered_helper_fullscreen( HWND hwnd, UINT style, UINT ex_style );
+ 
+ static const char *debugstr_mwm_hints( const MwmHints *hints )
+ {
+@@ -783,11 +784,23 @@
+ /***********************************************************************
+  *              sync_window_opacity
+  */
+-static void sync_window_opacity( Display *display, Window win, BYTE alpha, DWORD flags )
++static void sync_window_opacity( Display *display, Window win, HWND hwnd, BYTE alpha, DWORD flags )
+ {
+     unsigned long opacity = 0xffffffff;
+ 
++    const char *profile = getenv( "WINE_X11_INVISIBLE_DECORATION" );
++    RECT rect;
++
+     if (flags & LWA_ALPHA) opacity = (0xffffffff / 0xff) * alpha;
++
++    /* Keep the explicitly profiled, same-process decoration transparent before
++     * the compositor can sample an intermediate resize surface. */
++    if (profile && !strcmp( profile, "1" ) &&
++        suppress_layered_helper_fullscreen( hwnd, NtUserGetWindowLongW( hwnd, GWL_STYLE ),
++                                           NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) ) &&
++        NtUserGetWindowRect( hwnd, &rect, 96 ) &&
++        rect.right - rect.left >= 700 && rect.bottom - rect.top >= 400)
++        opacity = 0;
+ 
+     if (opacity == 0xffffffff)
+         XDeleteProperty( display, win, x11drv_atom(_NET_WM_WINDOW_OPACITY) );
+@@ -1712,7 +1725,7 @@
+ 
+ /* A per-application profile may identify owned transparent decoration
+  * layers which must never hide host panels merely by covering a monitor. */
+-static BOOL suppress_layered_helper_fullscreen( struct x11drv_win_data *data, UINT style, UINT ex_style )
++static BOOL suppress_layered_helper_fullscreen( HWND hwnd, UINT style, UINT ex_style )
+ {
+     const char *value = getenv( "WINE_X11_NO_FULLSCREEN_LAYERED_HELPER" );
+     const char *profile_class = getenv( "WINE_X11_NO_FULLSCREEN_HELPER_CLASS" );
+@@ -1727,15 +1740,15 @@
+     if (!value || strcmp( value, "1" ) || !profile_class || !*profile_class) return FALSE;
+     if ((ex_style & layered_helper) != layered_helper || (ex_style & WS_EX_APPWINDOW)) return FALSE;
+     if (style & (WS_CHILD | WS_CAPTION | WS_THICKFRAME | WS_MAXIMIZE)) return FALSE;
+-    if (!(owner = NtUserGetWindowRelative( data->hwnd, GW_OWNER ))) return FALSE;
++    if (!(owner = NtUserGetWindowRelative( hwnd, GW_OWNER ))) return FALSE;
+     owner_style = NtUserGetWindowLongW( owner, GWL_STYLE );
+     if ((owner_style & (WS_CAPTION | WS_CHILD)) != WS_CAPTION) return FALSE;
+     if (!NtUserGetWindowThread( owner, &owner_pid ) ||
+-        !NtUserGetWindowThread( data->hwnd, &pid ) || owner_pid != pid) return FALSE;
++        !NtUserGetWindowThread( hwnd, &pid ) || owner_pid != pid) return FALSE;
+     if (strlen( profile_class ) > 1020 ||
+         RtlUTF8ToUnicodeN( expected, sizeof(expected), &bytes, profile_class, strlen(profile_class) ) ||
+         !bytes || bytes > sizeof(name) - sizeof(WCHAR)) return FALSE;
+-    length = NtUserGetClassName( data->hwnd, FALSE, &class_name );
++    length = NtUserGetClassName( hwnd, FALSE, &class_name );
+     return bytes == length * sizeof(WCHAR) && !memcmp( name, expected, bytes );
+ }
+ 
+@@ -1757,7 +1770,7 @@
+     if (!X11DRV_HasWindowManager( "Mutter" )) return;
+     style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
+     ex_style = NtUserGetWindowLongW( data->hwnd, GWL_EXSTYLE );
+-    if (!suppress_layered_helper_fullscreen( data, style, ex_style )) return;
++    if (!suppress_layered_helper_fullscreen( data->hwnd, style, ex_style )) return;
+     if (XGetWindowProperty( data->display, data->whole_window, x11drv_atom(_GTK_FRAME_EXTENTS),
+                            0, 0, False, AnyPropertyType, &type, &format, &count, &remaining, &value ))
+         return;
+@@ -1790,7 +1803,7 @@
+     {
+         if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION)
+             new_state |= (1 << NET_WM_STATE_MAXIMIZED);
+-        else if (!(style & WS_MINIMIZE) && !suppress_layered_helper_fullscreen( data, style, ex_style ))
++        else if (!(style & WS_MINIMIZE) && !suppress_layered_helper_fullscreen( data->hwnd, style, ex_style ))
+             new_state |= (1 << NET_WM_STATE_FULLSCREEN);
+     }
+     else if (style & WS_MAXIMIZE)
+@@ -3075,7 +3088,7 @@
+ 
+     /* set the window opacity */
+     if (!NtUserGetLayeredWindowAttributes( data->hwnd, &key, &alpha, &layered_flags )) layered_flags = 0;
+-    sync_window_opacity( data->display, data->whole_window, alpha, layered_flags );
++    sync_window_opacity( data->display, data->whole_window, data->hwnd, alpha, layered_flags );
+     sync_window_input_shape( data );
+ 
+     XFlush( data->display );  /* make sure the window exists before we start painting to it */
+@@ -3224,7 +3237,7 @@
+                 set_window_visual( data, &argb_visual, TRUE );
+             else
+                 set_window_visual( data, &default_visual, FALSE );
+-            sync_window_opacity( data->display, data->whole_window, 0, 0 );
++            sync_window_opacity( data->display, data->whole_window, data->hwnd, 0, 0 );
+         }
+         if (changed & WS_EX_TRANSPARENT) sync_window_style( data );
+         flush = TRUE;
+@@ -4173,7 +4186,7 @@
+ 
+         if (data->whole_window)
+         {
+-            sync_window_opacity( data->display, data->whole_window, alpha, flags );
++            sync_window_opacity( data->display, data->whole_window, data->hwnd, alpha, flags );
+             XFlush( data->display );
+         }
+ 
+@@ -4185,7 +4198,7 @@
+         Window win = X11DRV_get_whole_window( hwnd );
+         if (win)
+         {
+-            sync_window_opacity( gdi_display, win, alpha, flags );
++            sync_window_opacity( gdi_display, win, hwnd, alpha, flags );
+             if (flags & LWA_COLORKEY)
+                 FIXME( "LWA_COLORKEY not supported on foreign process window %p\n", hwnd );
+             XFlush( gdi_display );
+@@ -4205,7 +4218,7 @@
+ 
+     if (data->whole_window)
+     {
+-        sync_window_opacity( data->display, data->whole_window, alpha, flags );
++        sync_window_opacity( data->display, data->whole_window, data->hwnd, alpha, flags );
+         XFlush( data->display );
+     }
+ 

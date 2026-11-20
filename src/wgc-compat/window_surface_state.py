@@ -7,6 +7,7 @@ import argparse
 import os
 import select
 import signal
+import time
 
 from Xlib import X, Xatom, display, error, protocol
 
@@ -22,6 +23,16 @@ class SurfaceState:
         if self.owner(self.parent) != pid or not self.window_class:
             raise ValueError("The companion owner could not be verified")
         self.hidden = {}
+        self.watched = set()
+        self.root.change_attributes(event_mask=X.PropertyChangeMask | X.SubstructureNotifyMask)
+        self.watch(self.parent)
+
+    def watch(self, window):
+        if window.id in self.watched:
+            return
+        window.change_attributes(event_mask=X.PropertyChangeMask | X.StructureNotifyMask)
+        window.shape_select_input(True)
+        self.watched.add(window.id)
 
     def owner(self, window):
         prop = window.get_full_property(self.atom("_NET_WM_PID"), Xatom.CARDINAL)
@@ -65,7 +76,7 @@ class SurfaceState:
         self.parent.shape_mask(0, 2, 0, 0, X.NONE)
         print(f"Restored companion input {geometry.width}x{geometry.height}", flush=True)
 
-    def invisible_helper(self, window):
+    def decoration_helper(self, window):
         if not self.belongs(window):
             return False
         owner = window.get_wm_transient_for()
@@ -74,6 +85,13 @@ class SurfaceState:
         geometry = window.get_geometry()
         if geometry.depth != 32 or geometry.width < 700 or geometry.height < 400:
             return False
+        frame = window.get_full_property(self.atom("_GTK_FRAME_EXTENTS"), Xatom.CARDINAL)
+        return frame is not None and list(frame.value) == [0, 0, 0, 0]
+
+    def invisible_helper(self, window):
+        if not self.decoration_helper(window):
+            return False
+        geometry = window.get_geometry()
         rectangles = window.shape_get_rectangles(0).rectangles
         return not any(r.x < geometry.width and r.y < geometry.height
                        and r.x + r.width > 0 and r.y + r.height > 0 for r in rectangles)
@@ -83,9 +101,17 @@ class SurfaceState:
             raise ValueError("Companion window identity changed")
         self.update_owner()
         active = set()
-        for window in self.root.query_tree().children:
+        clients = self.root.get_full_property(self.atom("_NET_CLIENT_LIST"), Xatom.WINDOW)
+        windows = (self.connection.create_resource_object("window", int(xid))
+                   for xid in clients.value) if clients is not None else ()
+        for window in windows:
             try:
-                if not self.invisible_helper(window):
+                if self.belongs(window):
+                    self.watch(window)
+                # Keep a verified decoration hidden across transient resize shapes.
+                # Wine can briefly give it a full bounding region before repainting.
+                if not (self.invisible_helper(window)
+                        or (window.id in self.hidden and self.decoration_helper(window))):
                     continue
                 active.add(window.id)
                 opacity = window.get_full_property(self.atom("_NET_WM_WINDOW_OPACITY"), Xatom.CARDINAL)
@@ -137,8 +163,31 @@ def main():
     connection = display.Display()
     state = SurfaceState(connection, args.owner_pid, args.parent_xid)
     try:
-        while not stopped and not select.select([owner], [], [], .1)[0]:
-            state.check()
+        state.check()
+        fallback = time.monotonic() + 2
+        while not stopped:
+            ready, _, _ = select.select(
+                [owner, connection.fileno()], [], [], max(0, fallback - time.monotonic()),
+            )
+            if owner in ready:
+                break
+            changed = False
+            while connection.pending_events():
+                event = connection.next_event()
+                if event.type == X.DestroyNotify:
+                    state.watched.discard(event.window.id)
+                if event.type in (X.CreateNotify, X.MapNotify, X.ConfigureNotify, X.DestroyNotify):
+                    changed = True
+                elif event.type == X.PropertyNotify:
+                    changed |= event.atom in {
+                        state.atom("_NET_CLIENT_LIST"), state.atom("_NET_WM_STATE"),
+                        state.atom("_NET_WM_WINDOW_OPACITY"),
+                    }
+                elif hasattr(event, "shape_kind"):
+                    changed = True
+            if changed or time.monotonic() >= fallback:
+                state.check()
+                fallback = time.monotonic() + 2
     finally:
         state.close()
         connection.close()

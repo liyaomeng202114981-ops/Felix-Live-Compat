@@ -21,6 +21,7 @@ PATCH_SERIES = (
     "0070-winex11-Keep-profiled-layered-decoration-windows-out-of-fullscreen.patch",
     "0071-winex11-Opt-in-to-an-application-specific-WM-instance.patch",
     "0072-explorer-Delegate-companion-tray-visibility-to-its-owner.patch",
+    "0073-winex11-Keep-profiled-invisible-decorations-transparent.patch",
 )
 WINE_SOURCE = "felix-proton-uu-test.1-modified-wine-source/wine"
 SDK = ("registry.gitlab.steamos.cloud/proton/steamrt4/sdk/x86_64@sha256:"

@@ -195,6 +195,7 @@ def run_session(root, direct):
                WINE_LAYERED_OVERLAY_ALPHA="1", WINE_X11_NATIVE_MAXIMIZED_MOVE="1",
                WINE_X11_NO_FULLSCREEN_LAYERED_HELPER="1",
                WINE_X11_NO_FULLSCREEN_HELPER_CLASS="Chrome_WidgetWin_1",
+               WINE_X11_INVISIBLE_DECORATION="1",
                WINE_X11_WM_INSTANCE=application_id(root),
                WINE_X11_WM_INSTANCE_EXE=WINDOW_CLASS.decode())
     arguments = ["--force-renderer-accessibility=complete"]
