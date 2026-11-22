@@ -35,6 +35,15 @@ DISPLAY_ENV = ("DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR",
                "PIPEWIRE_RUNTIME_DIR", "PIPEWIRE_REMOTE", "DESKTOP_STARTUP_ID")
 PREFIX_ENV = {"WINEDEBUG": "-all", "PROTON_LOG": "0", "PROTON_NVIDIA_NVENC": "1",
               "PROTON_FORCE_NVAPI": "1"}
+# Renderer backends for the official client. ``default`` is the shipped, fully
+# validated pair; ``vulkan`` drives the UI through ANGLE's Vulkan backend and
+# cuts the resize content-latency roughly in half in the local black-box
+# benchmark, but the sharing/recording/audio/broadcast paths have not been
+# re-validated with it, so it stays opt-in (see docs/UI_RESIZE_ASSESSMENT.md).
+UI_RENDERERS = {
+    "default": (),
+    "vulkan": ("--use-angle=vulkan",),
+}
 
 
 def wine_command(root, *args):
@@ -93,7 +102,9 @@ def service_name(root):
     return f"felix-live-compat-{instance_key(root)}"
 
 
-def launch(root, direct):
+def launch(root, direct, renderer="default", ui_resize=True):
+    if renderer not in UI_RENDERERS:
+        raise ValueError(f"Unsupported UI renderer: {renderer}")
     unit = service_name(root)
     if subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit]).returncode == 0:
         print(f"Already running: {unit}")
@@ -104,7 +115,9 @@ def launch(root, direct):
                     f"--property=RuntimeDirectory={unit}", "--property=RuntimeDirectoryMode=0700",
                     "--property=KillMode=control-group", "--property=TimeoutStopSec=5s",
                     *env, "--", sys.executable, "-B", str(Path(__file__).resolve()),
-                    "run-session", "--root", root, *flags], check=True)
+                    "run-session", "--root", root, *flags,
+                    f"--ui-renderer={renderer}",
+                    "--ui-resize" if ui_resize else "--no-ui-resize"], check=True)
 
 
 def main_window(connection, pids):
@@ -164,6 +177,16 @@ def start_helpers(root, runtime, payload, xid, pid):
     return children
 
 
+def start_ui_resize(root, runtime, log=None):
+    """Run the optional drag-time resize helper inside the session's runtime dir."""
+    log = log or runtime / "ui-resize.log"
+    return subprocess.Popen([
+        sys.executable, "-B", KIT / "tools/ui_resize_preview.py", "--full",
+        "--root", str(root), "--log", str(log),
+        "--lock", str(runtime / "ui-resize.lock"), "--idle-timeout", "0",
+    ], env=os.environ.copy())
+
+
 def stop_helpers(children):
     for child in children:
         if child.poll() is None:
@@ -176,7 +199,9 @@ def stop_helpers(children):
             child.wait()
 
 
-def run_session(root, direct):
+def run_session(root, direct, renderer="default", ui_resize=True):
+    if renderer not in UI_RENDERERS:
+        raise ValueError(f"Unsupported UI renderer: {renderer}")
     from Xlib import display
     from douyin_native import app_environment
 
@@ -198,7 +223,7 @@ def run_session(root, direct):
                WINE_X11_INVISIBLE_DECORATION="1",
                WINE_X11_WM_INSTANCE=application_id(root),
                WINE_X11_WM_INSTANCE_EXE=WINDOW_CLASS.decode())
-    arguments = ["--force-renderer-accessibility=complete"]
+    arguments = ["--force-renderer-accessibility=complete", *UI_RENDERERS[renderer]]
     if direct:
         for name in ("http_proxy", "https_proxy", "all_proxy", "ftp_proxy", "no_proxy"):
             env.pop(name, None)
@@ -251,6 +276,8 @@ def run_session(root, direct):
                         owner = os.pidfd_open(pid)
                     if owner is not None:
                         children = start_helpers(root, runtime, payload, xid, pid)
+                        if ui_resize:
+                            children.append(start_ui_resize(root, runtime))
                         print(f"Companion ready: {xid:#x}", flush=True)
                 elif now >= deadline:
                     raise RuntimeError("Timed out waiting for the official client window")
@@ -281,6 +308,14 @@ def main():
             command.add_argument("--interactive", action="store_true")
         elif name in ("launch", "run-session"):
             command.add_argument("--direct", action="store_true")
+            command.add_argument("--ui-renderer", choices=tuple(UI_RENDERERS),
+                                 default="default",
+                                 help="client UI renderer profile (default: %(default)s)")
+            resize = command.add_mutually_exclusive_group()
+            resize.add_argument("--ui-resize", dest="ui_resize", action="store_true", default=True,
+                                help="run the drag-time resize helper (default)")
+            resize.add_argument("--no-ui-resize", dest="ui_resize", action="store_false",
+                                help="disable the drag-time resize helper")
     args = parser.parse_args()
     try:
         if args.command == "preflight":
@@ -292,9 +327,9 @@ def main():
             if args.command == "stop":
                 subprocess.run(["systemctl", "--user", "stop", service_name(args.root)], check=True)
             elif args.command == "launch":
-                launch(args.root, args.direct)
+                launch(args.root, args.direct, args.ui_renderer, args.ui_resize)
             else:
-                run_session(args.root, args.direct)
+                run_session(args.root, args.direct, args.ui_renderer, args.ui_resize)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         parser.exit(1, f"{exc}\n")
 

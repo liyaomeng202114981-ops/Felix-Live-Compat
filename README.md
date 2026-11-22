@@ -29,7 +29,16 @@
 
 **实验归档 `0.2.0-experimental.1`** 保存原生 UI 演示、独立 Wine SDK 控制及 A／B 渲染快照原型，属于源码快照，不是日常安装升级。用户因额度紧张暂缓继续开发，RC3.4 保持。[实验版本](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.2.0-experimental.1) · [方案讨论与可行性](docs/FEASIBILITY_DISCUSSION.md) · [交接与待办](docs/releases/0.2.0-experimental.1.md)
 
-当前发行保持日常版已验证的图形参数。ANGLE Vulkan 在独立候选中改善缩放刷新代理，但高频 CPU 和媒体回归仍有边界，没有设为发行默认，也未加入实验 GPU 优先级接口。[分段测量与实验边界](docs/UI_RESIZE_ASSESSMENT.md)
+当前发行保持日常版已验证的图形参数。ANGLE Vulkan 在独立候选中改善缩放刷新代理，但高频 CPU 和媒体回归仍有边界，没有设为发行默认，也未加入实验 GPU 优先级接口。现在提供受控开关 `--ui-renderer vulkan`（默认仍是 `default`，发行行为不变），供按需试用与复测；黑盒复测与切换方式见[分段测量与实验边界](docs/UI_RESIZE_ASSESSMENT.md#黑盒复测与受控开关2026-11-21)。
+
+### 拖拽缩放（默认开启的辅助进程）
+
+Wine 下的官方客户端在拖拽缩放时不做实时重排（每次约 40 ms），表现为窗口变形但内容卡住。本版随会话启动一个纯 Python/Xlib 辅助进程：在客户端窗口边缘注入 8 个透明抓手与顶部移动条，拖拽时按节流频率代为发送 `_NET_MOVERESIZE_WINDOW`，并用一张冻结帧按窗口尺寸等比拉伸覆盖，松手后等待画面内容稳定再撤掉覆盖层，避免交接闪动。
+
+- 关闭：`--no-ui-resize`（`launch`/`run-session` 均支持），或在自定义入口里去掉该参数；
+- 尺寸下限跟随应用自身（直播伴侣实测 1080×720），不写死、不改写应用窗口提示；
+- 日志：`$XDG_RUNTIME_DIR/<unit>/ui-resize.log`；
+- 设计、边界与已验证范围见[拖拽缩放辅助进程](docs/UI_RESIZE_HELPER.md)。
 
 后续研究将评估「Linux 界面＋Wine 媒体后端」，先验证原生界面与后端能否独立通信及显示测试预览，再决定是否迁移原界面。此路线尚未实现，不是本包已具备的功能。[分阶段规划与预期体验](docs/NATIVE_UI_ROUTE_ONE.md)
 
