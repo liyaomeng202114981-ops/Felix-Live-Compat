@@ -25,6 +25,17 @@
 
 [Wayland 采集与 WGC](src/wgc-compat/README.md) · [退出确认框](src/wgc-compat/POPUP_FIRST_PAINT.md)
 
+## 已有安装的更新（patch 模式）
+
+已经装过一次的用户可以用补丁包更新兼容层，不必重新下载 runner 或重装客户端：
+
+```bash
+python3 -B tools/felix_live.py patch --root ~/Games/Felix-Live-Compat
+```
+
+仅系统 Wine、或前缀里没有官方客户端的场景不支持该模式，详见
+[docs/PATCH_INSTALL.md](docs/PATCH_INSTALL.md)。
+
 ## 界面性能与后续规划
 
 **实验归档 `0.2.0-experimental.1`** 保存原生 UI 演示、独立 Wine SDK 控制及 A／B 渲染快照原型，属于源码快照，不是日常安装升级。用户因额度紧张暂缓继续开发，RC3.4 保持。[实验版本](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.2.0-experimental.1) · [方案讨论与可行性](docs/FEASIBILITY_DISCUSSION.md) · [交接与待办](docs/releases/0.2.0-experimental.1.md)

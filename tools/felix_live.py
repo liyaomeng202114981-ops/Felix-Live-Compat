@@ -98,6 +98,58 @@ def install(root, installer, assets, interactive):
     print(f"Desktop entry: {register_desktop(root, launcher)}")
 
 
+def patch(root, assets):
+    """Re-apply the compatibility payload onto an existing Felix-Proton install.
+
+    Intended for users who already installed this kit once (patched runner,
+    prefix with the official client). It keeps the runner, the prefix and the
+    installed client, and only refreshes the kit-managed files.
+    """
+    if not root.is_dir():
+        raise FileNotFoundError(f"Installation directory is missing: {root}")
+    runner = root / "runner"
+    prefix = root / "prefix"
+    wrapper = root / "shorin-proton-wrapper"
+    if not (runner / "proton").is_file():
+        raise FileNotFoundError(
+            "Missing patched runner at runner/proton. Patch mode only works on an existing "
+            "Felix-Proton installation; a stock Wine cannot be patched in place. Run "
+            "`install` once to create a supported installation.")
+    if not (prefix / "pfx/drive_c").is_dir():
+        raise FileNotFoundError("Missing existing Wine prefix at prefix/pfx")
+    launcher = find_launcher(root)
+    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        raise ValueError("Run patch inside a desktop session (DISPLAY/WAYLAND_DISPLAY is unset)")
+    check_dependencies()
+    built = KIT / "payload"
+    subprocess.run(["sha256sum", "--strict", "--check", "SHA256SUMS"], cwd=built, check=True)
+    if not wrapper.is_file():
+        if assets is None:
+            raise FileNotFoundError(
+                "Missing shorin-proton-wrapper; pass --assets pointing at a local asset directory")
+        with obtain("wrapper", assets) as source:
+            shutil.copyfile(source, wrapper)
+        wrapper.chmod(0o700)
+    install_wine_modules(built, runner)
+    payload = root / "payload"
+    if payload.exists():
+        shutil.rmtree(payload)
+    shutil.copytree(built, payload)
+    shutil.copy2(payload / "window-stream", payload / "window-stream-interactive")
+    env = os.environ | PREFIX_ENV | {"WINEDLLOVERRIDES": "winemenubuilder.exe=d"}
+    stage_capture(payload, prefix, runner, wrapper, wine_env=env)
+    for name in ("tools", "src"):
+        target = root / "launcher" / name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(KIT / name, target,
+                        ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copy2(KIT / "assets.json", root / "launcher/assets.json")
+    (root / MARKER).write_text("1\n", encoding="ascii")
+    print(f"Patched: {root} (kept the existing runner, prefix and installed client)")
+    print(f"Desktop entry: {register_desktop(root, launcher)}")
+
+
 def service_name(root):
     return f"felix-live-compat-{instance_key(root)}"
 
@@ -298,9 +350,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("preflight")
-    for name in ("install", "launch", "stop", "run-session"):
+    for name in ("install", "patch", "launch", "stop", "run-session"):
         command = commands.add_parser(name)
         command.add_argument("--root", type=lambda path: Path(path).expanduser().resolve(), required=True)
+        if name == "patch":
+            command.add_argument("--assets", type=lambda path: Path(path).expanduser().resolve())
         if name == "install":
             command.add_argument("--installer", type=lambda path: Path(path).expanduser().resolve(),
                                  required=True)
@@ -322,6 +376,8 @@ def main():
             check_dependencies()
         elif args.command == "install":
             install(args.root, args.installer, args.assets, args.interactive)
+        elif args.command == "patch":
+            patch(args.root, args.assets)
         else:
             (args.root / MARKER).read_text()
             if args.command == "stop":
