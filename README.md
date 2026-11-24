@@ -8,6 +8,8 @@ Felix Live Compat 为官方 Windows 客户端提供 Linux 兼容组件与安装�
 
 **[下载预发行版](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.1.0-rc.3.6)** · **[安装指南](docs/INSTALL.md)** · **[实测记录](docs/CLEAN_INSTALL_TEST.md)** · **[三张图了解项目](docs/SOCIAL_POST.md)**
 
+图文发布：[三张 3:4 高清配图与文案打包下载](docs/media/felix-live-compat-social-3x4.zip?raw=true) · [可直接复制的短文案](docs/media/social-caption.txt)
+
 ## 现在能做什么
 
 - **直接添加全屏和窗口素材**：在伴侣里发起选择，Ubuntu 弹出对应的系统共享框，授权后显示画面。这条 DMA-BUF／WGC 采集链路不经过虚拟摄像头，无需采集卡。

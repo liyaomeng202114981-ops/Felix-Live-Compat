@@ -2,6 +2,8 @@
 
 三张图片均为 **1440×1920（3:4）**，可直接保存发布，无需再截长页面。图中为原创实现示意，不是客户端截图。源码 SVG 与生成脚本一并公开，方便修改文字和重新导出。
 
+**[一键下载三张竖图与发布文案（ZIP）](media/felix-live-compat-social-3x4.zip?raw=true)** · **[复制纯文本标题与正文](media/social-caption.txt)**
+
 | 顺序 | 内容 | 高清图片 | 可编辑矢量 |
 | --- | --- | --- | --- |
 | 1 | 封面：Ubuntu 上使用直播伴侣 | [PNG](media/social-01-cover.png) | [SVG](media/social-01-cover.svg) |

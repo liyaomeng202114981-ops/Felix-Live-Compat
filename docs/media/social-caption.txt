@@ -1,0 +1,14 @@
+Ubuntu 上也能用抖音直播伴侣了：我的开源兼容项目
+
+正文
+
+我把官方 Windows 版抖音直播伴侣接到了 Ubuntu：在伴侣里点全屏或窗口，选择 Ubuntu 允许共享的画面，就能进入预览和直播流程。这条采集链路不用采集卡，也不经过虚拟摄像头。
+
+项目叫 Felix Live Compat，兼容层和安装工具已开源。已分阶段实测从零安装、桌面／多窗口采集、本地音画录制，以及隔离候选的短时全屏和窗口开播。
+
+目前是预发行版，UI 缩放体验还在打磨；长时直播和观众端画质仍待验证。欢迎有相近环境的 Linux 用户试用、反馈问题。
+
+GitHub：liyaomeng202114981-ops/Felix-Live-Compat：https://github.com/liyaomeng202114981-ops/Felix-Live-Compat
+
+#Linux #Ubuntu #开源项目 #游戏直播 #直播伴侣
+
