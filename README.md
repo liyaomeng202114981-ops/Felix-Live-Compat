@@ -1,67 +1,61 @@
 # Felix Live Compat
 
-让官方 Windows 版抖音直播伴侣通过 Felix-Proton 在 Ubuntu 上工作。这个独立仓库用于维护兼容版本、验收记录和发行资料。用户从官方渠道取得 Windows 安装器，Felix 的发行包提供自行维护的兼容组件和安装工具。[官方下载](https://streamingtool.douyin.com/)
+![Felix Live Compat：让官方直播伴侣在 Ubuntu 上工作](docs/media/readme-hero.png)
 
-## 已验证基线
+**在 Ubuntu 上，用熟悉的抖音直播伴侣做桌面与游戏直播。**
 
-已在 Ubuntu GNOME Wayland／XWayland 验证官方客户端 `13.3.5.564315535`。验收覆盖原 Dock 入口重开、全屏及窗口共享预览、声音和录制。此前隔离候选从伴侣推流端验证了全屏约 33 秒、窗口约 28 秒，观众端与长时推流待验收。具体版本、验证范围和固定的 Felix-Proton 源码提交记录在 [compatibility.json](compatibility.json)。
+Felix Live Compat 为官方 Windows 客户端提供 Linux 兼容组件与安装工具：通过 Felix-Proton 运行客户端，把 Linux 的桌面、窗口采集接入伴侣自己的素材系统。项目已完成从零安装、采集预览、本地音画录制，以及隔离候选的短时开播测试。
 
-## 安装与源码
+**[下载预发行版](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.1.0-rc.3.6)** · **[安装指南](docs/INSTALL.md)** · **[实测记录](docs/CLEAN_INSTALL_TEST.md)** · **[三张图了解项目](docs/SOCIAL_POST.md)**
 
-预发行候选 `0.1.0-rc.3.4` 适配官方 Windows 客户端 `13.3.5.564315535`，支持在空目录安装。兼容版本号和官方客户端版本分别登记在 [版本表](compatibility.json)。[发行说明与下载](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.1.0-rc.3.4) · [本次变更、验证与回退](docs/releases/0.1.0-rc.3.4.md)
+## 现在能做什么
 
-- GNOME Dock 和应用网格共用独立入口，使用官方安装提取的红底白环图标。顶栏只显示一个托盘，保留打开、重置窗口、正常退出和原菜单，再加仅作用于该安装的强制退出。
-- Wine 配套模块包括媒体 SDK 所需的 IPC、透明辅助窗、原生最大化拖动和窗口标识修正。退出确认框沿用 24 毫秒稳定等待。
-- RC2 增加伴侣窗口表面状态维护。经身份和不透明像素核对后恢复过期的主窗输入尺寸，对完全不可见的直属辅助窗维护零不透明度和空输入，退出时恢复临时属性。此处理在原界面 GPU 渲染下验证最大化、还原和标题栏下拖。
-- RC3 将表面维护改成事件触发，并通过 Wine 驱动补丁让已声明的不可见装饰窗在缩放时始终保持透明。用户复测确认缩放白色闪帧消失、点击和拖动正常。
-- RC3.1 为主窗新增区域预设不透明深色背景，改善放大时短暂露出后方桌面的现象。该轮用户接受当前改善程度，首次启动短暂停顿及残余缩放闪动继续保留记录。
-- RC3.4 缓存 X11 固定标识和已发现窗口，合并一帧内的重复维护事件。缩放维护开销下降，但整体流畅度仍待改善，详见[性能对照](docs/CLEAN_INSTALL_TEST.md#rc34-缩放维护开销)。
-- RC3.3 处理窗口缩放中的两处 X11 像素读取竞态：表面维护程序跳过隐藏窗口并重试瞬时错误；Wine 0074 保护透明输入形状的 XGetImage 回退，避免媒体子进程退出后只剩主界面。连续缩放和动态预览的验证范围见[验收记录](docs/CLEAN_INSTALL_TEST.md#rc33-窗口采集中缩小伴侣丢画面)。
-- 伴侣内的显示器和窗口素材接入 Wayland 系统授权。窗口支持真实标题、重复选窗、静止首帧和后台显式同步。安装与启动沿用依赖预检和每前缀直连设置。
+- **直接添加全屏和窗口素材**：在伴侣里发起选择，Ubuntu 弹出对应的系统共享框，授权后显示画面。这条 DMA-BUF／WGC 采集链路不经过虚拟摄像头，无需采集卡。
+- **按需要选择多个窗口**：支持真实窗口标题、静止画面的首帧、后台更新，以及取消、删除和关窗后的资源清理。
+- **使用官方媒体功能**：已验证本地视频录制与声音，早期隔离候选已完成全屏和窗口的短时实播。
+- **融入 GNOME 桌面**：独立 Dock 入口、原客户端图标、单托盘，以及仅关闭本套安装的强制退出；修正了多项弹窗、透明辅助窗和最大化操作问题。
+- **方便安装和维护**：提供依赖预检、从零安装及已有安装的原地更新工具，保留 UnityCapture 采集回退。
 
-从零安装的本地候选已用官方 x64 安装器验证首次启动、应用内全屏和窗口授权，以及伴侣本地音画录制。候选支持的客户端构建号为 `13.3.5.564315535`。
+## 已通过哪些测试
 
-[从零安装与本地打包](docs/INSTALL.md) · [安装验收](docs/CLEAN_INSTALL_TEST.md) · [来源与许可](THIRD_PARTY.md)
+以下是**分阶段实测结果**，详细证据和每个版本的复测范围均保留在仓库中。
 
-[Wayland 采集与 WGC](src/wgc-compat/README.md) · [退出确认框](src/wgc-compat/POPUP_FIRST_PAINT.md)
+| 项目 | 已验证结果 |
+| --- | --- |
+| 从零安装与重开 | 使用官方 x64 安装器，在独立空前缀安装、登录并从桌面入口重开 |
+| 全屏采集 | 应用内触发系统授权，收到 **1920×1080 动态桌面** |
+| 窗口采集 | 动态画面与帧号、多窗口、静止首帧、后台更新及清理行为 |
+| 本地音画 | 录像解码验证 **720p30 视频 + 48 kHz 双声道 AAC**，恢复完整 8 秒测试音 |
+| 短时开播 | 隔离候选完成**全屏约 33 秒、窗口约 28 秒**的伴侣推流端检查 |
 
-## 已有安装的更新（patch 模式）
+实测环境：**Ubuntu 26.04 x86-64 · GNOME Wayland／XWayland · PipeWire · Vulkan · NVIDIA RTX 4060**；适配官方客户端 **13.3.5.564315535**。[版本表](compatibility.json) · [安装与录制验收](docs/CLEAN_INSTALL_TEST.md) · [短时推流记录](docs/SHORT_LIVE_TEST.md)
 
-已经装过一次的用户可以用补丁包更新兼容层，不必重新下载 runner 或重装客户端：
+当前仍为**预发行兼容方案**。观众端画质、长时推流及其他软硬件组合待验证；UI 缩放流畅度仍在改进。`rc.3.6` 主要增加原地更新，未重跑整套媒体验收，音画与开播结果来自上述历史阶段。[本版范围](docs/releases/0.1.0-rc.3.6.md)
+
+## 怎么实现
+
+![Linux 画面经 Portal、PipeWire、DMA-BUF 与 WGC 兼容层进入官方直播伴侣的流程](docs/media/capture-flow.png)
+
+**Linux 负责采集，兼容层负责衔接，官方客户端负责直播。** 系统授权后，PipeWire 交付画面；DMA-BUF 与 WGC 兼容组件把它接入伴侣的 Windows 图形捕获接口，继续由客户端预览、合成、编码并推流。Wine IPC 等配套修正让媒体服务和客户端能够正常通信。[采集实现与源码](src/wgc-compat/README.md)
+
+客户端界面目前通过 Wine／Proton 兼容运行。原生 Wine Wayland 和 Linux 界面解耦属于研究方向，尚未作为已通过验收的完整 UI 功能发布。
+
+## 安装与更新
+
+1. 下载 [兼容包](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.1.0-rc.3.6)，从[官方渠道](https://streamingtool.douyin.com/)获取 Windows x64 安装器。
+2. 按[安装指南](docs/INSTALL.md)做依赖预检，首次安装选择新的空目录。安装工具会下载并校验固定运行器，本包不是完整离线安装器。
+3. 启动后扫码登录，在伴侣中添加全屏或窗口素材，完成 Ubuntu 系统授权。
+
+已有兼容版可在退出伴侣后使用原地更新，保留运行器、客户端与前缀：
 
 ```bash
 python3 -B tools/felix_live.py patch --root ~/Games/Felix-Live-Compat
 ```
 
-仅系统 Wine、或前缀里没有官方客户端的场景不支持该模式，详见
-[docs/PATCH_INSTALL.md](docs/PATCH_INSTALL.md)。
+[更新前提与回退](docs/PATCH_INSTALL.md) · [版本变更](docs/releases/0.1.0-rc.3.6.md) · [详细兼容修正](docs/COMPATIBILITY_DETAILS.md)
 
-## 界面性能与后续规划
+## 开源与后续工作
 
-**实验归档 `0.2.0-experimental.1`** 保存原生 UI 演示、独立 Wine SDK 控制及 A／B 渲染快照原型，属于源码快照，不是日常安装升级。用户因额度紧张暂缓继续开发，RC3.4 保持。[实验版本](https://github.com/liyaomeng202114981-ops/Felix-Live-Compat/releases/tag/v0.2.0-experimental.1) · [方案讨论与可行性](docs/FEASIBILITY_DISCUSSION.md) · [交接与待办](docs/releases/0.2.0-experimental.1.md)
+由 **Felix Li** 维护，基于 Wine、Proton、DXVK，以及 SHORiN-KiWATA 的 WE-Proton／shorin-proton-wrapper，保留各自作者、来源和许可证。本仓库公开兼容层、补丁、安装工具与验收资料；官方客户端、安装器和账号数据不随包分发。[来源与许可](THIRD_PARTY.md) · [Felix-Proton](https://github.com/liyaomeng202114981-ops/Felix-Proton)
 
-当前发行保持日常版已验证的图形参数。ANGLE Vulkan 在独立候选中改善缩放刷新代理，但高频 CPU 和媒体回归仍有边界，没有设为发行默认，也未加入实验 GPU 优先级接口。现在提供受控开关 `--ui-renderer vulkan`（默认仍是 `default`，发行行为不变），供按需试用与复测；黑盒复测与切换方式见[分段测量与实验边界](docs/UI_RESIZE_ASSESSMENT.md#黑盒复测与受控开关2026-11-21)。
-
-### 拖拽缩放（默认开启的辅助进程）
-
-Wine 下的官方客户端在拖拽缩放时不做实时重排（每次约 40 ms），表现为窗口变形但内容卡住。本版随会话启动一个纯 Python/Xlib 辅助进程：在客户端窗口边缘注入 8 个透明抓手与顶部移动条，拖拽时按节流频率代为发送 `_NET_MOVERESIZE_WINDOW`，并用一张冻结帧按窗口尺寸等比拉伸覆盖，松手后等待画面内容稳定再撤掉覆盖层，避免交接闪动。
-
-- 关闭：`--no-ui-resize`（`launch`/`run-session` 均支持），或在自定义入口里去掉该参数；
-- 尺寸下限跟随应用自身（直播伴侣实测 1080×720），不写死、不改写应用窗口提示；
-- 日志：`$XDG_RUNTIME_DIR/<unit>/ui-resize.log`；
-- 设计、边界与已验证范围见[拖拽缩放辅助进程](docs/UI_RESIZE_HELPER.md)。
-
-后续研究将评估「Linux 界面＋Wine 媒体后端」，先验证原生界面与后端能否独立通信及显示测试预览，再决定是否迁移原界面。此路线尚未实现，不是本包已具备的功能。[分阶段规划与预期体验](docs/NATIVE_UI_ROUTE_ONE.md)
-
-## 跟随 Windows 版
-
-1. **发现更新。** 从官方下载页获取安装器。下载页的安装器版本与安装后运行的客户端版本可能不同，官方文档说明首次启动可能要求更新。在独立测试前缀完成官方更新后，确认实际运行的完整客户端版本和安装器来源。[官方安装说明](https://streamingtool.douyin.com/docs/guide_3pt6kqwx)
-2. **登记候选。** 保留已验证的客户端与 Proton 兼容层组合。新版本在独立前缀试装，记录客户端完整构建号、兼容代码提交和验收环境。先核对新增素材的界面入口和保存格式，以及退出弹窗匹配。
-3. **验收后发行。** 验证安装和重开、全屏和窗口授权、选窗及清理、后台预览、音频和本地录制、退出确认框。先以本地验证为主，实际推流测试单独记录。通过后给兼容包分配自己的版本号，在发行说明中列出其支持的官方客户端构建号。
-4. **保留回退。** 新组合验收后再由用户切换日常入口。保留上一套兼容组件和本机前缀备份。若官方服务要求更新，恢复旧前缀仍取决于该客户端版本是否能继续登录和开播。
-
-版本发现、隔离构建和部分测试可以自动化。系统共享授权、实际预览、音画和退出行为仍需要桌面验收。检测到新版时先登记候选。
-
-## 源码与许可
-
-兼容层在 Felix-Proton 开发，本仓库按发行记录固定来源提交。Wine、Proton、DXVK 等组件沿用各自的源码和许可证。抖音客户端和品牌资源由官方渠道提供。[Felix-Proton 源码](https://github.com/liyaomeng202114981-ops/Felix-Proton) · [官方权利说明](https://www.douyin.com/draft/douyin_agreement/douyin_agreement_user.html?id=6773906068725565448)
+后续重点是进一步改善 UI 缩放与呈现体验，并按官方 Windows 客户端构建号维护兼容版本；新版本通过隔离验收后再发布。[UI 研究](docs/UI_RESIZE_ASSESSMENT.md) · [路线讨论](docs/FEASIBILITY_DISCUSSION.md)
